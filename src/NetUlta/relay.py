@@ -258,6 +258,8 @@ def control(kind, data):
             result = provision(json.loads(data))
         elif kind == "G":
             result = gateway_install(json.loads(data))
+        elif kind == "J":
+            result = sharing(json.loads(data))
         else:
             result = telemetry(json.loads(data))
         reply(kind, result)
@@ -277,9 +279,9 @@ def dispatch(kind, data):
         send("P", data)
     elif kind == "S" and len(data) < 1024:
         configure(data)
-    elif (kind in ("I", "T", "C") and len(data) < 1024) or (kind == "G" and len(data) < 8192):
+    elif (kind in ("I", "T", "C") and len(data) < 1024) or (kind in ("G", "J") and len(data) < 8192):
         if CONTROL.acquire(blocking=False):
-            threading.Thread(target=control, args=(kind, data), daemon=kind not in ("C", "G")).start()
+            threading.Thread(target=control, args=(kind, data), daemon=kind not in ("C", "G", "J")).start()
         else:
             reply(kind, {"Error": "busy"})
     else:

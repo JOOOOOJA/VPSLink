@@ -63,7 +63,7 @@ sealed partial class MainWindow : Form
                 "Сохраните копию файла перед восстановлением: " + Path.Combine(directory, "profiles.json") +
                 ". Последняя резервная копия приложения: profiles.json.bak.");
         }
-        profiles.SelectedIndexChanged += (_, _) => Buttons();
+        profiles.SelectedIndexChanged += (_, _) => { invitations.Items.Clear(); Buttons(); };
         add.Click += async (_, _) => await AddServer();
         edit.Click += (_, _) => { if (profiles.SelectedItem is Profile p) EditProfile(p); };
         delete.Click += (_, _) => Remove();
@@ -108,12 +108,14 @@ sealed partial class MainWindow : Form
         add.Enabled = !busy && writable;
         edit.Enabled = delete.Enabled = start.Enabled = selected && !busy;
         gateway.Enabled = selected && gatewayWork == null && strategyWork == null && !closing;
+        if (profiles.SelectedItem is Profile { SharedAccess: true }) gateway.Enabled = false;
         stop.Enabled = running != null && !closing;
         export.Enabled = test.Enabled = copy.Enabled = readyPort.HasValue && !closing;
         internet.Enabled = readyPort.HasValue && !closing && !checkingInternet &&
             profiles.SelectedItem is Profile { ProtectedVpnConfig.Length: > 0 };
         RefreshShell();
         RefreshStrategies();
+        RefreshSharing();
     }
     void RefreshProfiles(Guid? selected)
     {
@@ -150,6 +152,7 @@ sealed partial class MainWindow : Form
     }
     async Task ConfigureGateway()
     {
+        if (profiles.SelectedItem is Profile { SharedAccess: true }) return;
         if (gatewayWork != null || strategyWork != null || profiles.SelectedItem is not Profile selected) return;
         using var dialog = new GatewayWindow(selected);
         if (dialog.ShowDialog(this) != DialogResult.OK || dialog.Result is not { } options) return;

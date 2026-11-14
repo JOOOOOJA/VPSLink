@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — sharing and strategy catalogs (Proof of Concept)
+
+- Include the Flowseal/bol-van strategy selection, catalog updates and guarded path testing from 0.3.2–0.3.3.
+- Add password-encrypted invitations with a fresh AmneziaWG peer and restricted SSH key per recipient, import and server-side revocation.
+- Keep owner SSH/VPN credentials, Cloudflare administration tokens, WARP registrations and local machine settings out of the transfer schema.
+- Install a fixed forced-command recipient handler: no shell, forwarding, arbitrary uploaded Python, administration commands or other UDP destinations.
+- Expand the technical README, infrastructure requirements, privacy/security boundaries and external tester acceptance steps.
+- Preserve manual connection and existing profile storage/installer identity. New sharing is experimental; see the validation report and limitations.
+
 ## 0.3.3 — Flowseal catalog (preview)
 
 - Make Flowseal/zapret-discord-youtube the default catalog source and retain bol-van as a selectable alternative.
