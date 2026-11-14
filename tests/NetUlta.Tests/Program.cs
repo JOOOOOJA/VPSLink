@@ -25,6 +25,9 @@ try
     RunUnit();
     await GatewayTests.Run();
     await UpdateTests.Run();
+    await StrategyTests.Run();
+    await FlowsealTests.Run();
+    SharingTests.Run();
     if (args.Length == 3) await RunIntegration(args[0], args[1], args[2]);
     else if (args.Length == 0) Console.WriteLine("Optional integration skipped (Python, existing libssh and application exe paths required).");
     else throw new ArgumentException("Expected three paths.");

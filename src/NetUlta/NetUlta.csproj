@@ -8,7 +8,7 @@
     <RollForward>LatestMajor</RollForward>
     <AssemblyName>VPSLink</AssemblyName>
     <RootNamespace>NetUlta</RootNamespace>
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>../../assets/VPSLink.ico</ApplicationIcon>
     <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
@@ -20,6 +20,8 @@
     <EmbeddedResource Include="relay.py" LogicalName="NetUlta.relay.py" />
     <EmbeddedResource Include="awg_setup.py" LogicalName="NetUlta.awg_setup.py" />
     <EmbeddedResource Include="gateway_setup.py" LogicalName="NetUlta.gateway_setup.py" />
+    <EmbeddedResource Include="sharing_setup.py" LogicalName="NetUlta.sharing_setup.py" />
+    <EmbeddedResource Include="shared_client.py" LogicalName="NetUlta.shared_client.py" />
     <EmbeddedResource Include="../../tools/https-relay/relay.py" LogicalName="NetUlta.https_relay.py" />
     <EmbeddedResource Include="Guide.html" LogicalName="NetUlta.Guide.html" />
   </ItemGroup>

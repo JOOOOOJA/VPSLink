@@ -60,7 +60,7 @@ foreach ($dir in 'docs','src','tests','tools','LICENSES','assets','.github') {
     $files += @(Get-ChildItem -LiteralPath (Join-Path $root $dir) -Recurse -File | ForEach-Object {
         $relative = $_.FullName.Substring($root.Length + 1)
         if ($relative -notmatch '(^|[\\/])(bin|obj|__pycache__)([\\/]|$)' -and
-            $relative -notmatch 'proxy-env-' -and $_.Extension -notin '.conf','.pem','.key','.pyc') { $relative }
+            $relative -notmatch 'proxy-env-' -and $_.Extension -notin '.conf','.pem','.key','.vpslink','.pyc') { $relative }
     })
 }
 New-Archive $srcZip $root $files

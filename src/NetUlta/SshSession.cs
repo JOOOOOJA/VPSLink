@@ -128,11 +128,20 @@ sealed class SshSession : IDisposable
     static byte[] ReadRelay()
     {
         using var dest = new MemoryStream();
-        foreach (var resource in new[] { "NetUlta.awg_setup.py", "NetUlta.gateway_setup.py", "NetUlta.relay.py" })
+        foreach (var resource in new[] { "NetUlta.awg_setup.py", "NetUlta.gateway_setup.py", "NetUlta.sharing_setup.py", "NetUlta.relay.py" })
         {
             using var src = typeof(SshSession).Assembly.GetManifestResourceStream(resource);
             if (src == null && resource == "NetUlta.gateway_setup.py") continue;
             if (src == null) throw new IOException("Missing SSH bridge resource.");
+            if (resource == "NetUlta.sharing_setup.py")
+            {
+                foreach (var item in new[] { ("SHARED_RELAY_SOURCE", "relay.py"), ("SHARED_CLIENT_SOURCE", "shared_client.py") })
+                {
+                    using var embedded = typeof(SshSession).Assembly.GetManifestResourceStream("NetUlta." + item.Item2)!;
+                    using var bytes = new MemoryStream(); embedded.CopyTo(bytes);
+                    dest.Write(Encoding.ASCII.GetBytes(item.Item1 + " = '" + Convert.ToBase64String(bytes.ToArray()) + "'\n"));
+                }
+            }
             if (resource == "NetUlta.gateway_setup.py")
             {
                 using var gateway = typeof(SshSession).Assembly.GetManifestResourceStream("NetUlta.https_relay.py")
@@ -205,16 +214,19 @@ sealed class SshSession : IDisposable
             }
             using var helper = new AskPass(info, p.Auth, credentials.Passphrase, token, helperExe);
             info.ArgumentList.Add("127.0.0.1");
-            info.ArgumentList.Add(Bootstrap);
+            info.ArgumentList.Add(p.SharedAccess ? "vpslink-client-v1" : Bootstrap);
             var process = Process.Start(info) ?? throw new IOException("OpenSSH");
             session = new SshSession(process, bridge);
             using var interrupt = token.Register(session.Interrupt);
             try
             {
                 var stdin = process.StandardInput.BaseStream;
-                await stdin.WriteAsync(Encoding.ASCII.GetBytes(Relay.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n"), token);
-                await stdin.WriteAsync(Relay, token);
-                await stdin.FlushAsync(token);
+                if (!p.SharedAccess)
+                {
+                    await stdin.WriteAsync(Encoding.ASCII.GetBytes(Relay.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n"), token);
+                    await stdin.WriteAsync(Relay, token);
+                    await stdin.FlushAsync(token);
+                }
                 var hello = await session.Wire.Read(token);
                 if (hello.Type != 'H' || !hello.Payload.AsSpan().SequenceEqual(Encoding.ASCII.GetBytes("TFL/1")))
                     throw new UserFault("Ответ SSH не совпал с протоколом моста. Проверьте, не печатает ли shell приветствие в stdout.");

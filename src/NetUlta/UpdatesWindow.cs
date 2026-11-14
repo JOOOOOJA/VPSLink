@@ -97,7 +97,7 @@ sealed partial class MainWindow
     void InstallUpdate()
     {
         if (downloadedUpdate == null || availableUpdate == null || updateBusy) return;
-        if (running != null || gatewayWork != null || NetworkInterface.GetAllNetworkInterfaces().Any(n => n.OperationalStatus == OperationalStatus.Up && n.Name.Contains("Amnezia", StringComparison.OrdinalIgnoreCase)))
+        if (running != null || gatewayWork != null || strategyWork != null || NetworkInterface.GetAllNetworkInterfaces().Any(n => n.OperationalStatus == OperationalStatus.Up && n.Name.Contains("Amnezia", StringComparison.OrdinalIgnoreCase)))
         { updateStatus.Text = "Сначала отключите профиль AmneziaVPN и мост Link. Пакет уже скачан, интернет для установки не нужен."; return; }
         try
         {

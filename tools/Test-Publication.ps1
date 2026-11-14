@@ -8,8 +8,8 @@ $files = Get-ChildItem -LiteralPath $root -Recurse -File -Force | Where-Object {
 }
 foreach ($file in $files) {
     $relative = $file.FullName.Substring($root.Length + 1)
-    if ($file.Name -match '^(profiles.*\.json|config\.json|hosts\.yml|\.env.*)$' -or
-        $file.Extension -in '.pem','.key','.pfx','.dpapi','.log','.jsonl','.vmx','.vmdk','.vmem','.vmss','.iso','.exe','.dll','.sys') {
+    if ($file.Name -match '^(profiles.*\.json|config\.json|hosts\.yml|authorized_keys|\.env.*)$' -or
+        $file.Extension -in '.pem','.key','.pfx','.dpapi','.vpslink','.log','.jsonl','.vmx','.vmdk','.vmem','.vmss','.iso','.exe','.dll','.sys') {
         $issues += "Forbidden publication file: $relative"
         continue
     }

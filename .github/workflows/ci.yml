@@ -36,3 +36,6 @@ jobs:
       - run: python -I tests/test_awg_setup.py
       - run: python -I tests/test_https_relay.py
       - run: python -I tests/test_gateway_setup.py
+      - run: python -I tests/test_sharing.py
+      - name: Restricted invitation key against isolated OpenSSH
+        run: sudo "$(command -v python)" -I tests/test_shared_ssh.py

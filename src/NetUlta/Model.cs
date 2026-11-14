@@ -12,6 +12,8 @@ enum ProxyKind { None, Socks5, HttpConnect }
 sealed record Profile
 {
     public Guid Id { get; init; } = Guid.NewGuid();
+    public bool SharedAccess { get; init; }
+    public string InvitationId { get; init; } = "";
     public string Name { get; init; } = "";
     public string Host { get; init; } = "";
     public int SshPort { get; init; } = 22;
@@ -35,6 +37,7 @@ sealed record Profile
     public bool StartWarp { get; init; }
     public bool UseWarpCore { get; init; }
     public string ZapretPath { get; init; } = "";
+    public WinwsStrategy? WinwsStrategy { get; init; }
     public VpnSetup VpnSetup { get; init; }
     public string ServerPublicKey { get; init; } = "";
     public int ConfigEndpointPort { get; init; }
@@ -73,6 +76,10 @@ static class Model
 
     public static void Validate(Profile p, bool allowUnpinned = false)
     {
+        if (p.WinwsStrategy != null) WinwsStrategies.Validate(p.WinwsStrategy);
+        if (p.SharedAccess && (p.Auth != AuthKind.Key || p.VpnSetup == VpnSetup.Create ||
+            !Guid.TryParseExact(p.InvitationId, "N", out _) || p.ProtectedVpnConfig.Length == 0))
+            throw new UserFault("Повреждён профиль приглашения. Импортируйте исходный файл заново.");
         if (p.Id == Guid.Empty || string.IsNullOrWhiteSpace(p.Name) || p.Name.Length > 120)
             throw new UserFault("Введите название профиля (до 120 символов).");
         if (!IsHost(p.Host) || p.SshPort is < 1 or > 65535 || !Regex.IsMatch(p.User, @"\A[A-Za-z0-9_][A-Za-z0-9_.@-]{0,63}\z"))
