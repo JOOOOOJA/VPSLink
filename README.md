@@ -7,7 +7,7 @@
 
 Windows 11 x64 application that creates a local UDP bridge to **your own existing AmneziaWG server**, using SSH and optional WARP MASQUE / HTTPS transport. You keep using AmneziaVPN as the VPN client.
 
-**Экспериментальный Proof of Concept.** Проверен в ограниченном наборе Windows/VPS-сред. Не проходил независимый аудит безопасности; не гарантирует работу у любого провайдера, анонимность, отсутствие утечек или обход всех блокировок. Это самостоятельный проект, не официальный продукт Amnezia, Cloudflare или zapret.
+**Экспериментальный Proof of Concept.** Проверен в ограниченном наборе Windows/VPS-сред. Не гарантирует работу у любого провайдера, анонимность, отсутствие утечек или обход всех блокировок. Это самостоятельный проект, не официальный продукт Amnezia, Cloudflare или zapret.
 
 ## Для чего
 
