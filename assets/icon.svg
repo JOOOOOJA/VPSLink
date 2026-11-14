@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>VPSLink</title>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#15171c" stroke="#343740" stroke-width="3"/>
+  <path d="M66 78 L128 184 L190 78" fill="none" stroke="#ff9b35" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="66" cy="78" r="23" fill="#ff9b35"/>
+  <circle cx="66" cy="78" r="10" fill="#fff4e4"/>
+  <circle cx="190" cy="78" r="23" fill="#ff9b35"/>
+  <circle cx="190" cy="78" r="10" fill="#fff4e4"/>
+  <circle cx="128" cy="184" r="15" fill="#ffc76e"/>
+</svg>

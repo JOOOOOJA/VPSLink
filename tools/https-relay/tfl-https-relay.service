@@ -1,0 +1,21 @@
+[Unit]
+Description=ThingsNotFun Link HTTPS relay to local SSH
+After=network.target ssh.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+LoadCredential=relay-token:/etc/tfl-https-relay/token
+ExecStart=/usr/bin/python3 -I /opt/tfl-https-relay/relay.py --token-file %d/relay-token
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+[Install]
+WantedBy=multi-user.target

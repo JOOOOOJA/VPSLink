@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RollForward>LatestMajor</RollForward>
+    <AssemblyName>VPSLink</AssemblyName>
+    <RootNamespace>NetUlta</RootNamespace>
+    <Version>0.3.1</Version>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationIcon>../../assets/VPSLink.ico</ApplicationIcon>
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=/src/VPSLink</PathMap>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="relay.py" LogicalName="NetUlta.relay.py" />
+    <EmbeddedResource Include="awg_setup.py" LogicalName="NetUlta.awg_setup.py" />
+    <EmbeddedResource Include="gateway_setup.py" LogicalName="NetUlta.gateway_setup.py" />
+    <EmbeddedResource Include="../../tools/https-relay/relay.py" LogicalName="NetUlta.https_relay.py" />
+    <EmbeddedResource Include="Guide.html" LogicalName="NetUlta.Guide.html" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,178 @@
+[
+  {
+    "Module": "github.com/Diniboy1123/connect-ip-go",
+    "Version": "v0.0.0-20260613064811-66cba32d7d33",
+    "GoSum": "h1:HHEVWeNlF1ytUyi4xH+K0yVrkAwCOBAz2WvriKbs7HQ=",
+    "Zip": "github.com_Diniboy1123_connect-ip-go@v0.0.0-20260613064811-66cba32d7d33.zip",
+    "Sha256": "213526EB8070A03E4B066FED26F68F2D670635F2B185B82467346C72F1202140",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/dunglas/httpsfv",
+    "Version": "v1.1.0",
+    "GoSum": "h1:Jw76nAyKWKZKFrpMMcL76y35tOpYHqQPzHQiwDvpe54=",
+    "Zip": "github.com_dunglas_httpsfv@v1.1.0.zip",
+    "Sha256": "5A246B4B8EFA140A12BA5D2D76B8270B0960D9AD37FEF891A4FA4DE5750CD857",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/google/btree",
+    "Version": "v1.1.3",
+    "GoSum": "h1:CVpQJjYgC4VbzxeGVHfvZrv1ctoYCAI8vbl07Fcxlyg=",
+    "Zip": "github.com_google_btree@v1.1.3.zip",
+    "Sha256": "11B736BC8252B52FECDF346D3707CCF3A2B6D458BA21B4F843616FC12EEB30B2",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/inconshreveable/mousetrap",
+    "Version": "v1.1.0",
+    "GoSum": "h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=",
+    "Zip": "github.com_inconshreveable_mousetrap@v1.1.0.zip",
+    "Sha256": "526674DE624D7DB108CFE7653EF110CCDFD97BC85026254224815567928ED243",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/patrickmn/go-cache",
+    "Version": "v2.1.0+incompatible",
+    "GoSum": "h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=",
+    "Zip": "github.com_patrickmn_go-cache@v2.1.0+incompatible.zip",
+    "Sha256": "D5D1C13E3C9CFEB04A943F656333EC68627DD6CE136AF67E2AA5881AD7353C55",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/quic-go/qpack",
+    "Version": "v0.6.0",
+    "GoSum": "h1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=",
+    "Zip": "github.com_quic-go_qpack@v0.6.0.zip",
+    "Sha256": "3AC037CD1747420BC00BD6A793B4B197A2359FC354DE12DC2187477417564914",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/quic-go/quic-go",
+    "Version": "v0.60.0",
+    "GoSum": "h1:xcQioE8OM66UQLeUMHltK1CCcOu3JbVB4JAQdDQSB+0=",
+    "Zip": "github.com_quic-go_quic-go@v0.60.0.zip",
+    "Sha256": "A48D4E302591FD1B51BEC8733F2E7E4E6ED97B369F1139141A55D43F69A7FCBD",
+    "LicenseFiles": 2
+  },
+  {
+    "Module": "github.com/songgao/water",
+    "Version": "v0.0.0-20200317203138-2b4b6d7c09d8",
+    "GoSum": "h1:TG/diQgUe0pntT/2D9tmUCz4VNwm9MfrtPr0SU2qSX8=",
+    "Zip": "github.com_songgao_water@v0.0.0-20200317203138-2b4b6d7c09d8.zip",
+    "Sha256": "9411B54A45F3B35ED3A1B1B7C31E6C447533F7F634C1C0702619C27B56073438",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/spf13/cobra",
+    "Version": "v1.10.2",
+    "GoSum": "h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=",
+    "Zip": "github.com_spf13_cobra@v1.10.2.zip",
+    "Sha256": "A00AAE6FCD631E0FDE52C98604452FF70E1B73C3B8A560D68DB15AFF5E26872D",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/spf13/pflag",
+    "Version": "v1.0.10",
+    "GoSum": "h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk=",
+    "Zip": "github.com_spf13_pflag@v1.0.10.zip",
+    "Sha256": "A246B8C9D3DAA87D6C634CDFEE1BDF7FA53D5817EEEF4FA0C6DA43EDD12DE4CA",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/txthinking/runnergroup",
+    "Version": "v0.0.0-20250224021307-5864ffeb65ae",
+    "GoSum": "h1:ArVM1jICfm7g4E4dBet+KHUFMLuxmj1Nxdp/tr3ByCU=",
+    "Zip": "github.com_txthinking_runnergroup@v0.0.0-20250224021307-5864ffeb65ae.zip",
+    "Sha256": "14916D3A7D4874CA99336DDD2A05741F5019CBF4C56295E13397B1CE286537BA",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/txthinking/socks5",
+    "Version": "v0.0.0-20260601051520-339b044ab0eb",
+    "GoSum": "h1:cFSmrCbLJPb87QrwDhUTnguVLezlIqDiJuY8xKcFZnw=",
+    "Zip": "github.com_txthinking_socks5@v0.0.0-20260601051520-339b044ab0eb.zip",
+    "Sha256": "5F07F251250F16D6456A592504F4519613912907B83F8DD73DF58BBB8E9F680F",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "github.com/yosida95/uritemplate/v3",
+    "Version": "v3.0.2",
+    "GoSum": "h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=",
+    "Zip": "github.com_yosida95_uritemplate_v3@v3.0.2.zip",
+    "Sha256": "65A29B6AB759CD30A1ED496A8A77B144A5683B89D505CFDE51F907CB7AB9B8BD",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "golang.org/x/crypto",
+    "Version": "v0.53.0",
+    "GoSum": "h1:QZ4Muo8THX6CizN2vPPd5fBGHyogrdK9fG4wLPFUsto=",
+    "Zip": "golang.org_x_crypto@v0.53.0.zip",
+    "Sha256": "90EF99675E16B3E5105A80D93007FAAF5DE989C21FA5A47339B5062E72320C9E",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "golang.org/x/exp",
+    "Version": "v0.0.0-20260611194520-c48552f49976",
+    "GoSum": "h1:X8Hz2ImujgbmetVuW+w2YkyZChE3cBpZi2P158rTG9M=",
+    "Zip": "golang.org_x_exp@v0.0.0-20260611194520-c48552f49976.zip",
+    "Sha256": "2FF12996D2155BECCFAA1C59235CA4B9A1C9551C07345DA1988A3B26782DD308",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "golang.org/x/net",
+    "Version": "v0.56.0",
+    "GoSum": "h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=",
+    "Zip": "golang.org_x_net@v0.56.0.zip",
+    "Sha256": "BBC975B3EC9CD86892CFC515BADC125657E135C00162D0DA5DE33F6D07930464",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "golang.org/x/sys",
+    "Version": "v0.46.0",
+    "GoSum": "h1:noSf2Fq6F8DBgS+LysIkx7rIExoNHJsxOAtPp4rthXw=",
+    "Zip": "golang.org_x_sys@v0.46.0.zip",
+    "Sha256": "36DC83B6BC5884D260CDBD9D09E597B1EED64D15DFDC374CA6E31AEF99D533D7",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "golang.org/x/text",
+    "Version": "v0.38.0",
+    "GoSum": "h1:sXmwo9DwP3OK9EZ7PqAdaooSGozfl/3a6/xJcbzPRhE=",
+    "Zip": "golang.org_x_text@v0.38.0.zip",
+    "Sha256": "BE98266212AC63CDC78631AE0FF8F783E0F5E47D9B6094C11FFEBE43FD0424B3",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "golang.org/x/time",
+    "Version": "v0.15.0",
+    "GoSum": "h1:bbrp8t3bGUeFOx08pvsMYRTCVSMk89u4tKbNOZbp88U=",
+    "Zip": "golang.org_x_time@v0.15.0.zip",
+    "Sha256": "8CFB20E915FA5D6C3FD264304233F8D71A3385E48A37819239C532AD9DA27F84",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "golang.zx2c4.com/wintun",
+    "Version": "v0.0.0-20230126152724-0fa3db229ce2",
+    "GoSum": "h1:B82qJJgjvYKsXS9jeunTOisW56dUokqW/FOteYJJ/yg=",
+    "Zip": "golang.zx2c4.com_wintun@v0.0.0-20230126152724-0fa3db229ce2.zip",
+    "Sha256": "06599222DAA6AF8547045C446CEFA9A2BAB19D57BDE1FC6436114308D79A2B4B",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "golang.zx2c4.com/wireguard",
+    "Version": "v0.0.0-20260522210424-ecfc5a8d5446",
+    "GoSum": "h1:cqHQ3AycTHvM2R7ikgyX57D+XvtcSnGylsLkOVhta/w=",
+    "Zip": "golang.zx2c4.com_wireguard@v0.0.0-20260522210424-ecfc5a8d5446.zip",
+    "Sha256": "B49F63B29E173E7BC960B647B787D420E425C60E478D7A2F337EF219A0F74821",
+    "LicenseFiles": 1
+  },
+  {
+    "Module": "gvisor.dev/gvisor",
+    "Version": "v0.0.0-20260616165937-8e4bc62602eb",
+    "GoSum": "h1:TJ8BuwC+RUuKZgRETtxPjRk8e2Kj3kH08I73AKIdOFY=",
+    "Zip": "gvisor.dev_gvisor@v0.0.0-20260616165937-8e4bc62602eb.zip",
+    "Sha256": "4784C302E3AA29288F5CB7501BBAA2085ACF263F299DDFEAC8B17D5DF1D2CF16",
+    "LicenseFiles": 1
+  }
+]

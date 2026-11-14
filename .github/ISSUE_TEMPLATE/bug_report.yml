@@ -1,0 +1,31 @@
+name: Bug report
+description: Report a reproducible VPSLink problem without private data
+body:
+  - type: markdown
+    attributes:
+      value: "Do not attach profiles.json, .conf files, passwords, keys, tokens, WARP registrations or unredacted logs. Security reports belong in private vulnerability reporting."
+  - type: input
+    id: version
+    attributes:
+      label: VPSLink version
+      placeholder: 0.3.1
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Windows version, AmneziaVPN / AWG version, VPS OS (no IPs or account names)
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps, expected result and actual result
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed keys, tokens, private configuration and personal/server identifiers.
+          required: true
