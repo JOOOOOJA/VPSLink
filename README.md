@@ -99,7 +99,7 @@ Cloudflare завершает внешний TLS шлюза и видит соо
 
 ## Стратегии winws
 
-По умолчанию используется [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube), альтернативно — [bol-van/zapret-win-bundle](https://github.com/bol-van/zapret-win-bundle). Название upstream не ограничивает его только двумя сайтами. VPSLink адаптирует совместимые TLS-секции для собственного канала WARP.
+По умолчанию используется [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube), альтернативно — [bol-van/zapret-win-bundle](https://github.com/bol-van/zapret-win-bundle). VPSLink адаптирует совместимые TLS-секции для собственного канала WARP.
 
 - Шесть встроенных вариантов, обновление каталога, проверка выбранного и последовательный подбор.
 - Стратегия сохраняется отдельно для сервера; загрузка каталога не переключает действующее соединение.
