@@ -6,6 +6,9 @@ namespace NetUlta;
 
 sealed partial class MainWindow
 {
+    sealed record CatalogSource(string Name, string Repository) { public override string ToString() => Name; }
+    readonly ComboBox catalogSource = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 580, AccessibleName = "Источник стратегий" };
+    readonly TextBox catalogNotes = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Width = 640, Height = 130, AccessibleName = "Пропущенные варианты и причины" };
     readonly ComboBox strategyChoice = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 580, AccessibleName = "Стратегия winws" };
     readonly Label strategyDescription = HelpText(""), strategyCurrent = HelpText(""), catalogStatus = HelpText(""), strategyStatus = HelpText("");
     readonly Button applyStrategy = Button("Использовать для сервера"), resetStrategy = Button("Вернуть базовую"),
@@ -31,9 +34,13 @@ sealed partial class MainWindow
         content.Controls.Add(Row(elevateStrategies));
         content.Controls.Add(Row(checkStrategy, findStrategy, cancelStrategy));
         content.Controls.Add(strategyStatus); content.Controls.Add(strategyResults);
-        content.Controls.Add(Heading("Каталог zapret", "Источник: bol-van/zapret-win-bundle на GitHub. Загружаются только совместимые параметры из официального примера winws. Обновление каталога не меняет выбранную стратегию и не прерывает VPN."));
+        content.Controls.Add(Heading("Каталог zapret", "Flowseal: general, ALT, FAKE TLS и другие наборы. Импортируются совместимые TLS-параметры и шаблоны пакетов для WARP. Обновление не меняет сохранённую стратегию и не прерывает VPN."));
+        catalogSource.Items.AddRange(new object[] { new CatalogSource("Flowseal · zapret-discord-youtube", WinwsStrategies.FlowsealRepository), new CatalogSource("bol-van · официальный пример winws", WinwsStrategies.Repository) });
+        catalogSource.SelectedIndex = 0;
+        content.Controls.Add(Row(catalogSource));
         content.Controls.Add(catalogStatus); content.Controls.Add(Row(updateStrategies, rollbackStrategies));
-        var source = Button("Открыть источник ↗"); source.Click += (_, _) => TryUi(() => OpenUrl("https://github.com/" + WinwsStrategies.Repository + "/blob/master/" + WinwsStrategies.PresetPath));
+        content.Controls.Add(catalogNotes);
+        var source = Button("Открыть источник ↗"); source.Click += (_, _) => TryUi(() => OpenUrl("https://github.com/" + ((CatalogSource)catalogSource.SelectedItem).Repository));
         content.Controls.Add(Row(source)); page.Controls.Add(content);
         strategyChoice.SelectedIndexChanged += (_, _) => DescribeStrategy();
         applyStrategy.Click += (_, _) => TryUi(SaveStrategy);
@@ -51,8 +58,9 @@ sealed partial class MainWindow
         elevateStrategies.Click += (_, _) => ElevateStrategies();
         tips.SetToolTip(strategyChoice, "Варианты для WARP MASQUE через TCP 443. Выбор в списке ничего не запускает и не меняет действующий мост.");
         tips.SetToolTip(applyStrategy, "Сохраняет выбранный вариант только для этого сервера. Затем подключите Link и включите профиль AmneziaVPN вручную.");
-        tips.SetToolTip(findStrategy, "Проверяет варианты по очереди до первого успешного ответа вашего VPS, до 25 секунд на вариант. Результат нужно сохранить кнопкой «Использовать для сервера».");
+        tips.SetToolTip(findStrategy, "Проверяет варианты по кругу, начиная с выбранного, до первого успешного ответа VPS. До 25 секунд на вариант. Результат нужно сохранить кнопкой «Использовать для сервера».");
         tips.SetToolTip(updateStrategies, "Обновляет каталог параметров через GitHub. Скачанные CMD-файлы не исполняются; winws и драйверы этой кнопкой не обновляются.");
+        tips.SetToolTip(catalogSource, "Выберите источник каталога. Flowseal используется по умолчанию; выбор источника не изменяет стратегию сервера. Для загрузки нажмите «Обновить с GitHub».");
         tips.SetToolTip(rollbackStrategies, "Возвращает предыдущую успешно сохранённую версию каталога. Сохранённая в профиле стратегия остаётся прежней.");
         try { strategyCatalog = catalogStore.Load(); ShowCatalog(); }
         catch (Exception e) when (CatalogError(e)) { catalogStatus.Text = "Сохранённый каталог не удалось прочитать. Встроенные стратегии доступны. Нажмите «Обновить с GitHub» или верните предыдущий каталог."; }
@@ -63,8 +71,10 @@ sealed partial class MainWindow
     void ShowCatalog()
     {
         catalogStatus.Text = strategyCatalog == null ? "Встроенные варианты доступны без интернета. Нажмите «Обновить с GitHub», чтобы добавить варианты zapret." :
-            $"Добавлено из zapret: {strategyCatalog.Strategies.Length}. Проверено: {strategyCatalog.FetchedUtc.ToLocalTime():g}. Версия: {strategyCatalog.Revision[..8]}." +
+            $"{strategyCatalog.Repository}: вариантов {strategyCatalog.Strategies.Length}. Проверено: {strategyCatalog.FetchedUtc.ToLocalTime():g}. Версия: {strategyCatalog.Revision[..8]}." +
             (strategyCatalog.Skipped == 0 ? "" : $" Несовместимых TLS-вариантов пропущено: {strategyCatalog.Skipped}.");
+        catalogNotes.Text = string.Join("\r\n", strategyCatalog?.Notes ?? Array.Empty<string>());
+        catalogNotes.Visible = catalogNotes.TextLength > 0;
     }
     void RefreshStrategies(bool force = false)
     {
@@ -92,12 +102,13 @@ sealed partial class MainWindow
         strategyChoice.Enabled = strategyWork == null && !closing;
         elevateStrategies.Visible = !IsAdministrator(); elevateStrategies.Enabled = available;
         updateStrategies.Enabled = !catalogBusy && strategyWork == null && !closing;
+        catalogSource.Enabled = !catalogBusy && strategyWork == null && !closing;
         rollbackStrategies.Enabled = !catalogBusy && strategyWork == null && !closing && catalogStore.CanRollback;
     }
     void DescribeStrategy()
     {
         if (strategyChoice.SelectedItem is WinwsStrategy chosen) strategyDescription.Text = chosen.Description +
-            (chosen.Revision == "builtin" ? "\nВстроенный вариант VPSLink." : "\nИсточник: zapret, версия " + chosen.Revision[..8] + ".");
+            (chosen.Revision == "builtin" ? "\nВстроенный вариант VPSLink." : "\nИсточник: " + (chosen.Id.StartsWith("flowseal-") ? "Flowseal" : "bol-van") + ", версия " + chosen.Revision[..8] + ".");
     }
     void SaveStrategy()
     {
@@ -114,7 +125,7 @@ sealed partial class MainWindow
         try
         {
             using var client = new StrategyCatalogClient();
-            var fetched = await client.Fetch(cancel.Token);
+            var fetched = await client.Fetch(((CatalogSource)catalogSource.SelectedItem).Repository, cancel.Token);
             cancel.Token.ThrowIfCancellationRequested();
             catalogStore.Save(fetched); strategyCatalog = fetched;
             ShowCatalog(); RefreshStrategies(true);
@@ -131,7 +142,9 @@ sealed partial class MainWindow
         if (StrategyBusy || catalogBusy || profiles.SelectedItem is not Profile profile || strategyChoice.SelectedItem is not WinwsStrategy chosen) return;
         try { if (!IsAdministrator()) throw new UserFault("Откройте VPSLink от администратора кнопкой выше."); StrategyProbe.RequireReady(profile); }
         catch (UserFault e) { strategyStatus.Text = e.Message; return; }
-        var choices = automatic ? strategyChoice.Items.Cast<WinwsStrategy>().ToArray() : new[] { chosen };
+        var all = strategyChoice.Items.Cast<WinwsStrategy>().ToArray();
+        int first = Math.Max(0, strategyChoice.SelectedIndex);
+        var choices = automatic ? all.Skip(first).Concat(all.Take(first)).ToArray() : new[] { chosen };
         using var cancel = new CancellationTokenSource(); strategyWork = cancel; Buttons();
         strategyResults.Clear(); strategyStatus.Text = "Проверяем путь до VPS. Подключение AmneziaVPN пока оставьте выключенным.";
         var progress = new Progress<StrategyAttempt>(attempt =>

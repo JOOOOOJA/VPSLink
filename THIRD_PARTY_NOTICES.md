@@ -22,3 +22,5 @@ Logos and names of upstream projects are not used as the VPSLink icon. No endors
 ## Imported strategy examples
 
 The optional strategy catalog adapts TLS parameters from the MIT-licensed [bol-van/zapret-win-bundle](https://github.com/bol-van/zapret-win-bundle), `zapret-winws/preset1_example.cmd`. VPSLink stores the source commit and imports only a restricted set of parameters; it does not execute the downloaded script. Existing zapret attribution and license notices apply. See [strategy documentation](docs/strategies.md).
+
+The default catalog in 0.3.3 additionally imports compatible parameters and packet templates from [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube), copyright bol-van and Flowseal, MIT. Its license and attribution are retained in `LICENSES/Flowseal-MIT.txt`. BAT/service scripts and additional executables are not executed or installed by the catalog updater.

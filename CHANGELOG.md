@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3 — Flowseal catalog (preview)
+
+- Make Flowseal/zapret-discord-youtube the default catalog source and retain bol-van as a selectable alternative.
+- Preserve general/ALT/FAKE TLS names, compatible TLS parameters and packet templates, with commit-pinned downloads and per-file integrity checks.
+- Explain skipped sections and identical variants. Timestamp-dependent variants are skipped without changing Windows TCP settings.
+- Preserve legacy catalogs, saved profiles, active connections and manual connection behavior.
+
 ## 0.3.2 — strategy selection (preview)
 
 - Added a Russian-language Strategies page with six built-in WARP TLS strategies, per-server selection and reset to the 0.3.1 default.
