@@ -89,7 +89,7 @@ sealed class WarpCore : ITransport, IDisposable
         finally { RegistrationGate.Release(); }
     }
 
-    public static WarpCore Start(string zapretPath = "")
+    public static WarpCore Start(string zapretPath = "", WinwsStrategy? strategy = null, bool exclusive = false)
     {
         VerifyExecutable();
         if (!Registered) throw new UserFault("Ядро WARP ещё не зарегистрировано.");
@@ -107,7 +107,7 @@ sealed class WarpCore : ITransport, IDisposable
             k.Equals("HTTPS_PROXY", StringComparison.OrdinalIgnoreCase) || k.Equals("ALL_PROXY", StringComparison.OrdinalIgnoreCase) ||
             k.Equals("NO_PROXY", StringComparison.OrdinalIgnoreCase)).ToArray())
             info.Environment.Remove(key);
-        var zapret = StartZapret(zapretPath, endpoint);
+        var zapret = StartZapret(zapretPath, endpoint, strategy, exclusive);
         Process child;
         try { child = Process.Start(info) ?? throw new IOException("WARP core"); }
         catch { if (zapret != null) { SshSession.Kill(zapret); zapret.Dispose(); } throw; }
@@ -139,14 +139,23 @@ sealed class WarpCore : ITransport, IDisposable
         finally { CryptographicOperations.ZeroMemory(config); }
     }
 
-    static Process? StartZapret(string path, IPAddress endpoint)
+    static Process? StartZapret(string path, IPAddress endpoint, WinwsStrategy? strategy, bool exclusive)
     {
         if (path.Length == 0 && File.Exists(BundledZapret)) path = BundledZapret;
-        if (path.Length == 0) return null;
-        var running = Process.GetProcessesByName("winws");
+        if (path.Length == 0)
+        {
+            if (exclusive || strategy != null) throw new UserFault("В сборке отсутствует winws. Установите полный пакет VPSLink.");
+            return null;
+        }
+        var running = Process.GetProcessesByName("winws").Concat(
+            exclusive || strategy != null ? Process.GetProcessesByName("winws2") : Array.Empty<Process>()).ToArray();
         try
         {
-            if (running.Length > 0) return null;
+            if (running.Length > 0)
+            {
+                if (exclusive || strategy != null) throw new UserFault("Уже работает другой winws. Остановите его своим обычным способом перед проверкой или применением выбранной стратегии. VPSLink не останавливает чужие процессы.");
+                return null;
+            }
         }
         finally { foreach (var item in running) item.Dispose(); }
         if (!Path.IsPathFullyQualified(path) || !Path.GetFileName(path).Equals("winws.exe", StringComparison.OrdinalIgnoreCase) ||
@@ -161,10 +170,7 @@ sealed class WarpCore : ITransport, IDisposable
         var info = new ProcessStartInfo(path) { UseShellExecute = false, CreateNoWindow = true,
             WorkingDirectory = folder };
         // Limit the filter to the selected MASQUE endpoint. Open connections to other services are outside it.
-        info.ArgumentList.Add($"--wf-raw=outbound and ip and tcp and tcp.DstPort == 443 and ip.DstAddr == {endpoint}");
-        info.ArgumentList.Add("--filter-tcp=443");
-        info.ArgumentList.Add("--dpi-desync=multisplit");
-        info.ArgumentList.Add("--dpi-desync-split-pos=1");
+        foreach (string argument in WinwsStrategies.Arguments(endpoint, strategy ?? WinwsStrategies.Default)) info.ArgumentList.Add(argument);
         return Process.Start(info) ?? throw new IOException("zapret");
     }
 
@@ -225,8 +231,13 @@ sealed class WarpCore : ITransport, IDisposable
 sealed class RestartableWarpCore : ITransport, IDisposable
 {
     readonly string zapretPath;
+    readonly WinwsStrategy? strategy;
     WarpCore? core;
-    public RestartableWarpCore(string zapretPath) => this.zapretPath = zapretPath;
+    public RestartableWarpCore(string zapretPath, WinwsStrategy? strategy = null)
+    {
+        this.zapretPath = zapretPath;
+        this.strategy = strategy == null ? null : WinwsStrategies.Snapshot(strategy);
+    }
     public string Name => "ядро WARP MASQUE";
 
     public async Task<Stream> Connect(string host, int port, CancellationToken ct)
@@ -236,7 +247,7 @@ sealed class RestartableWarpCore : ITransport, IDisposable
             core.Dispose();
             core = null;
         }
-        core ??= WarpCore.Start(zapretPath);
+        core ??= WarpCore.Start(zapretPath, strategy);
         return await core.Connect(host, port, ct);
     }
 

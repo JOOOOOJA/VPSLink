@@ -123,6 +123,7 @@ sealed partial class MainWindow
         AddPage(nav, "Главная", home, "Главный экран подключения. Показывает связь с сервером, VPN и интернетом. Открывайте для подключения и проверки состояния.");
         AddPage(nav, "Серверы", servers, "Ваши VPS и профили VPN. Здесь добавляют сервер, меняют его данные и сохраняют файл для AmneziaVPN. Нужно при первом запуске или смене сервера.");
         AddPage(nav, "Подключение", connection, "Путь к серверу и постоянный шлюз. Нужен, если прямое соединение заблокировано или требуется постоянный адрес после перезапуска VPS.");
+        AddPage(nav, "Стратегии", BuildStrategiesPage(), "Варианты winws для встроенного WARP. Здесь можно обновить каталог zapret, проверить путь до VPS и выбрать рабочую стратегию без редактирования конфигурации.");
         AddPage(nav, "Диагностика", diagnosticPage, "Проверка интернета и журнал подключения. Откройте, если VPN не подключается, сайты не открываются или нужно понять причину ошибки.");
         AddPage(nav, "Обновления", BuildUpdatesPage(), "Новые версии Link из GitHub. Проверка и загрузка не прерывают VPN; установка выполняется по вашему нажатию с сохранением профилей.");
         AddPage(nav, "Инструкция", guide, "Пошаговая помощь без сложных терминов. Объясняет первый запуск, автоподключение и типичные проблемы. Полную версию можно открыть в браузере.");
@@ -169,7 +170,7 @@ sealed partial class MainWindow
     void RefreshShell()
     {
         bool busy = running != null;
-        power.Enabled = !closing && gatewayWork == null && writable;
+        power.Enabled = !closing && gatewayWork == null && strategyWork == null && writable;
         power.Active = readyPort.HasValue; power.Waiting = busy && !readyPort.HasValue;
         power.Text = busy ? "Отключить" : profiles.SelectedItem is Profile ? "Подключить" : "Добавить сервер";
         power.AccessibleName = power.Text; power.Invalidate();

@@ -175,7 +175,7 @@ sealed class Supervisor
             Model.Validate(p, allowUnpinned: interaction != null);
             using var local = new LocalUdp(p.LocalPort);
             update(new("Ищем путь до VPS…", Port: local.Port));
-            using var coreTransport = p.UseWarpCore ? new RestartableWarpCore(p.ZapretPath) : null;
+            using var coreTransport = p.UseWarpCore ? new RestartableWarpCore(p.ZapretPath, p.WinwsStrategy) : null;
             var candidates = Candidates();
             int delay = 2;
             bool triedWarp = false;

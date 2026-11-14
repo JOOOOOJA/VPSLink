@@ -14,13 +14,14 @@ static class Program
         bool configureStartup = args.Length == 3 && args[0] == "--configure-autostart";
         bool manualStart = args.SequenceEqual(new[] { "--configure-manual-start" });
         Guid? connectProfile = null;
-        if (args.Length == 3 && args[0] == "--connect-profile" && Guid.TryParse(args[1], out var profileId) && int.TryParse(args[2], out int previousPid))
+        Guid? strategiesProfile = null;
+        if (args.Length == 3 && args[0] is ("--connect-profile" or "--strategies") && Guid.TryParse(args[1], out var profileId) && int.TryParse(args[2], out int previousPid))
         {
-            connectProfile = profileId;
+            if (args[0] == "--strategies") strategiesProfile = profileId; else connectProfile = profileId;
             try { using var previous = System.Diagnostics.Process.GetProcessById(previousPid); if (!previous.WaitForExit(15000)) return 3; }
             catch (ArgumentException) { }
         }
-        if (args.Length > 0 && !startup && !preview && !configureStartup && !manualStart && connectProfile == null && !args.SequenceEqual(new[] { "--smoke-ui" })) return 2;
+        if (args.Length > 0 && !startup && !preview && !configureStartup && !manualStart && connectProfile == null && strategiesProfile == null && !args.SequenceEqual(new[] { "--smoke-ui" })) return 2;
         ApplicationConfiguration.Initialize();
         if (preview)
         {
@@ -65,7 +66,7 @@ static class Program
         }
         try { SshFiles.ClearOrphans(directory); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-        using var main = new MainWindow(directory, startup, connectProfile);
+        using var main = new MainWindow(directory, startup, connectProfile, strategiesProfile);
         Application.Run(main);
         return 0;
     }

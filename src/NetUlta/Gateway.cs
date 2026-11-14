@@ -143,7 +143,7 @@ static class GatewaySetup
     {
         Model.Validate(p);
         CloudflareGateway.Validate(options);
-        using var core = p.UseWarpCore ? new RestartableWarpCore(p.ZapretPath) : null;
+        using var core = p.UseWarpCore ? new RestartableWarpCore(p.ZapretPath, p.WinwsStrategy) : null;
         ITransport upstream = core != null ? core : p.Proxy != ProxyKind.None ? new ProxyTransport(p) : new TcpTransport(p.AdapterId);
         ITransport bootstrap = p.HttpsRelay.Length == 0 ? upstream : new HttpsTransport(p, upstream);
         using var ssh = await OpenBootstrap(bootstrap, p, ProfileStore.DefaultDirectory, status, ct, helperExe);

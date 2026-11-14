@@ -39,7 +39,7 @@ sealed partial class MainWindow : Form
         return panel;
     }
 
-    public MainWindow(string directory, bool startup = false, Guid? connectProfile = null)
+    public MainWindow(string directory, bool startup = false, Guid? connectProfile = null, Guid? strategiesProfile = null)
     {
         this.directory = directory;
         store = new(directory);
@@ -76,19 +76,20 @@ sealed partial class MainWindow : Form
         copy.Click += (_, _) => { if (readyPort is int port) TryUi(() => Clipboard.SetText("127.0.0.1:" + port)); };
         FormClosing += HandleClosing;
         FormClosing += (_, _) => gatewayWork?.Cancel();
-        RefreshProfiles(null);
+        RefreshProfiles(strategiesProfile);
+        if (strategiesProfile.HasValue) SelectPage(3);
         Shown += async (_, _) =>
         {
             if (startup) WindowState = FormWindowState.Minimized;
             if (saved.Any(p => p.StartWithWindows) && IsAdministrator()) TryUi(() => StartupRegistration.Set(true));
-            var automatic = connectProfile.HasValue ? saved.FirstOrDefault(p => p.Id == connectProfile) : saved.FirstOrDefault(p => p.AutoConnect);
+            var automatic = strategiesProfile.HasValue ? null : connectProfile.HasValue ? saved.FirstOrDefault(p => p.Id == connectProfile) : saved.FirstOrDefault(p => p.AutoConnect);
             if (automatic != null) { RefreshProfiles(automatic.Id); await StartAsync(automatic); }
         };
     }
 
     async Task AddServer()
     {
-        if (running != null || gatewayWork != null || closing || !writable) return;
+        if (running != null || gatewayWork != null || strategyWork != null || closing || !writable) return;
         var profile = EditProfile(null);
         if (profile != null) await StartAsync(profile);
     }
@@ -101,17 +102,18 @@ sealed partial class MainWindow : Form
     }
     void Buttons()
     {
-        bool busy = running != null || gatewayWork != null || closing;
+        bool busy = running != null || gatewayWork != null || strategyWork != null || closing;
         bool selected = profiles.SelectedItem is Profile;
         profiles.Enabled = !busy;
         add.Enabled = !busy && writable;
         edit.Enabled = delete.Enabled = start.Enabled = selected && !busy;
-        gateway.Enabled = selected && gatewayWork == null && !closing;
+        gateway.Enabled = selected && gatewayWork == null && strategyWork == null && !closing;
         stop.Enabled = running != null && !closing;
         export.Enabled = test.Enabled = copy.Enabled = readyPort.HasValue && !closing;
         internet.Enabled = readyPort.HasValue && !closing && !checkingInternet &&
             profiles.SelectedItem is Profile { ProtectedVpnConfig.Length: > 0 };
         RefreshShell();
+        RefreshStrategies();
     }
     void RefreshProfiles(Guid? selected)
     {
@@ -126,7 +128,7 @@ sealed partial class MainWindow : Form
         Profile? result = null;
         TryUi(() =>
         {
-            if (running != null) return;
+            if (running != null || strategyWork != null) return;
             using var dialog = new ProfileWindow(existing);
             if (dialog.ShowDialog(this) != DialogResult.OK || dialog.Result is not { } p) return;
             SaveProfile(p);
@@ -148,7 +150,7 @@ sealed partial class MainWindow : Form
     }
     async Task ConfigureGateway()
     {
-        if (gatewayWork != null || profiles.SelectedItem is not Profile selected) return;
+        if (gatewayWork != null || strategyWork != null || profiles.SelectedItem is not Profile selected) return;
         using var dialog = new GatewayWindow(selected);
         if (dialog.ShowDialog(this) != DialogResult.OK || dialog.Result is not { } options) return;
         bool reconnect = running != null;
@@ -194,7 +196,7 @@ sealed partial class MainWindow : Form
     });
     async Task StartAsync(Profile p)
     {
-        if (running != null || closing) return;
+        if (running != null || gatewayWork != null || strategyWork != null || closing) return;
         if (p.UseWarpCore && !IsAdministrator())
         {
             try
@@ -302,11 +304,13 @@ sealed partial class MainWindow : Form
     }
     async void HandleClosing(object? sender, FormClosingEventArgs e)
     {
-        if (allowClose || running == null) { tray.Visible = false; tray.Dispose(); return; }
+        if (allowClose || (running == null && strategyWork == null)) { tray.Visible = false; tray.Dispose(); return; }
         e.Cancel = true;
         if (closing) return;
         closing = true;
+        strategyWork?.Cancel();
         Buttons();
+        if (strategyTask != null) { try { await strategyTask; } catch (Exception) { } }
         await StopAsync();
         allowClose = true;
         Close();

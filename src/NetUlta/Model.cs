@@ -35,6 +35,7 @@ sealed record Profile
     public bool StartWarp { get; init; }
     public bool UseWarpCore { get; init; }
     public string ZapretPath { get; init; } = "";
+    public WinwsStrategy? WinwsStrategy { get; init; }
     public VpnSetup VpnSetup { get; init; }
     public string ServerPublicKey { get; init; } = "";
     public int ConfigEndpointPort { get; init; }
@@ -73,6 +74,7 @@ static class Model
 
     public static void Validate(Profile p, bool allowUnpinned = false)
     {
+        if (p.WinwsStrategy != null) WinwsStrategies.Validate(p.WinwsStrategy);
         if (p.Id == Guid.Empty || string.IsNullOrWhiteSpace(p.Name) || p.Name.Length > 120)
             throw new UserFault("Введите название профиля (до 120 символов).");
         if (!IsHost(p.Host) || p.SshPort is < 1 or > 65535 || !Regex.IsMatch(p.User, @"\A[A-Za-z0-9_][A-Za-z0-9_.@-]{0,63}\z"))
