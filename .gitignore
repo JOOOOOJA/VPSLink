@@ -12,6 +12,8 @@
 *.key
 *.pfx
 *.dpapi
+*.vpslink
+authorized_keys
 *.log
 *.jsonl
 profiles*.json

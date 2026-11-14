@@ -6,7 +6,7 @@ sealed partial class MainWindow
 {
     readonly Button shareCreate = Button("Создать приглашение…"), shareImport = Button("Импортировать приглашение…"),
         shareList = Button("Обновить список"), shareRevoke = Button("Отозвать выбранное…");
-    readonly ListBox invitations = new() { Width = 610, Height = 180, DisplayMember = "Name" };
+    readonly ListBox invitations = new() { Width = 610, Height = 180, DisplayMember = "Display" };
     readonly Label sharingStatus = HelpText("Для получателя: импортируйте файл .vpslink от владельца сервера.");
 
     Control BuildSharingPage()
@@ -105,7 +105,7 @@ sealed partial class MainWindow
             if (MessageBox.Show(this, $"Добавить сервер {p.Host}?\nКлюч SSH: {p.Fingerprint}\nСверьте адрес и отпечаток с владельцем по доверенному каналу.",
                 Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
             SaveProfile(p);
-            sharingStatus.Text = "Сервер добавлен. Нажмите «Подключить», затем «Сохранить профиль VPN…» и импортируйте .conf в AmneziaVPN. Для работы встроенного WARP сначала выполните его регистрацию в настройках сервера.";
+            sharingStatus.Text = "Сервер добавлен. Нажмите «Подключить»: при необходимости Link предложит зарегистрировать ваше устройство WARP. Затем сохраните профиль VPN и импортируйте .conf в AmneziaVPN.";
         }, false);
     }
     async Task ManageInvitations(bool revoke)

@@ -10,7 +10,10 @@ sealed record Invitation(int Version, string Id, string Name, string Host, int S
     string SshKey, string HttpsRelay, string RelayToken, bool UseWarpCore, string RemoteIp, int RemotePort,
     string SourceId, string ClientPublicKey, string VpnConfig);
 sealed record InvitationEnvelope(string Format, int Version, string Salt, string Nonce, string Ciphertext, string Tag);
-sealed record SharedEntry(string Id, string Name, string Peer, bool Active);
+sealed record SharedEntry(string Id, string Name, string Peer, bool Active)
+{
+    public string Display => Name + (Active ? " — активен" : " — мост отозван");
+}
 sealed record SharedReply(bool Ready, string? Error, VpnProvision? Vpn, string? SourceId, SharedEntry[]? Invitations);
 
 static class InvitationFile

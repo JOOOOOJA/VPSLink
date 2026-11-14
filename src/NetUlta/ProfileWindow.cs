@@ -144,6 +144,12 @@ sealed class ProfileWindow : Form
         }
         mode.SelectedIndexChanged += (_, _) => ModeChanged();
         ModeChanged();
+        if (original.SharedAccess)
+        {
+            foreach (var control in new Control[] { host, user, sshPort, fingerprint, auth, secret, keyWrap, mode, chooseConfig })
+                control.Enabled = false;
+            Note(main, "Доступ получен по приглашению. Ключи и сервер задаёт владелец; вам не нужны его пароль SSH или API-токен. Локальный порт и путь подключения доступны в дополнительных настройках.");
+        }
         startWarp.Checked = original.StartWarp;
         useWarpCore.Checked = original.UseWarpCore;
         useWarpCore.Enabled = WarpCore.Installed || original.UseWarpCore;
