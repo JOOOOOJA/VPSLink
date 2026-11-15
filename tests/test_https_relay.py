@@ -2,12 +2,40 @@ import asyncio
 import base64
 import importlib.util
 import pathlib
+import random
 import struct
 import unittest
 
 spec = importlib.util.spec_from_file_location('relay', pathlib.Path(__file__).resolve().parents[1] / 'tools/https-relay/relay.py')
 relay = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(relay)
+
+
+class MaskTests(unittest.TestCase):
+    def test_rfc6455_hello_vector(self):
+        payload = bytearray.fromhex('7f9f4d5158')
+        relay.unmask(payload, bytes.fromhex('37fa213d'))
+        self.assertEqual(payload, b'Hello')
+
+    def test_all_mask_values_and_partial_lanes(self):
+        for key in range(256):
+            mask = bytes((key, (key + 1) % 256, 255 - key, key ^ 0xaa))
+            for size in range(17):
+                source = bytes(range(size))
+                expected = bytes(value ^ mask[i % 4] for i, value in enumerate(source))
+                actual = bytearray(source)
+                relay.unmask(actual, mask)
+                self.assertEqual(actual, expected)
+
+    def test_large_and_boundary_payloads(self):
+        rng = random.Random(42)
+        source = bytes(rng.getrandbits(8) for _ in range(relay.FRAME_LIMIT))
+        mask = bytes((0, 127, 128, 255))
+        for size in (125, 126, 127, 1400, 32767, 32768, 32769, 65535, 65536, relay.FRAME_LIMIT):
+            actual = bytearray(source[:size])
+            expected = bytes(value ^ mask[i % 4] for i, value in enumerate(actual))
+            relay.unmask(actual, mask)
+            self.assertEqual(actual, expected)
 
 
 class RelayTests(unittest.IsolatedAsyncioTestCase):

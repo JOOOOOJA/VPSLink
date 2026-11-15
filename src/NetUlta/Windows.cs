@@ -24,6 +24,7 @@ sealed partial class MainWindow : Form
     Task? run;
     int generation;
     int? readyPort;
+    string readyAddress = "127.0.0.1";
     bool closing, allowClose, checkingInternet, writable = true;
 
     static Button Button(string text) => new() { Text = text, AutoSize = true, MinimumSize = new Size(0, 33) };
@@ -73,7 +74,7 @@ sealed partial class MainWindow : Form
         export.Click += (_, _) => Export(handshakeOnly: false);
         test.Click += (_, _) => Export(handshakeOnly: true);
         internet.Click += async (_, _) => await CheckInternet();
-        copy.Click += (_, _) => { if (readyPort is int port) TryUi(() => Clipboard.SetText("127.0.0.1:" + port)); };
+        copy.Click += (_, _) => { if (readyPort is int port) TryUi(() => Clipboard.SetText(readyAddress + ":" + port)); };
         FormClosing += HandleClosing;
         FormClosing += (_, _) => gatewayWork?.Cancel();
         RefreshProfiles(strategiesProfile);
@@ -116,6 +117,7 @@ sealed partial class MainWindow : Form
         RefreshShell();
         RefreshStrategies();
         RefreshSharing();
+        RefreshDirect();
     }
     void RefreshProfiles(Guid? selected)
     {
@@ -200,7 +202,7 @@ sealed partial class MainWindow : Form
     async Task StartAsync(Profile p)
     {
         if (running != null || gatewayWork != null || strategyWork != null || closing) return;
-        if (p.UseWarpCore && !IsAdministrator())
+        if ((p.UseWarpCore || p.Direct?.Enabled == true) && !IsAdministrator())
         {
             try
             {
@@ -214,7 +216,7 @@ sealed partial class MainWindow : Form
             catch (System.ComponentModel.Win32Exception)
             {
                 status.Text = "Нужны права Windows";
-                hint.Text = "Встроенному подключению нужны права администратора. Нажмите «Подключить» и подтвердите запрос Windows.";
+                hint.Text = "Для выбранного режима нужны права администратора. Нажмите «Подключить» и подтвердите запрос Windows.";
             }
             return;
         }
@@ -303,28 +305,33 @@ sealed partial class MainWindow : Form
         stop.Enabled = false;
         readyPort = null;
         export.Enabled = test.Enabled = internet.Enabled = copy.Enabled = false;
+        if (directTask != null) await directTask;
         try { await task; } catch (Exception) { }
     }
     async void HandleClosing(object? sender, FormClosingEventArgs e)
     {
-        if (allowClose || (running == null && strategyWork == null)) { tray.Visible = false; tray.Dispose(); return; }
+        if (allowClose || (running == null && strategyWork == null && directTask == null)) { tray.Visible = false; tray.Dispose(); return; }
         e.Cancel = true;
         if (closing) return;
         closing = true;
         strategyWork?.Cancel();
+        directWork?.Cancel();
         Buttons();
         if (strategyTask != null) { try { await strategyTask; } catch (Exception) { } }
+        if (directTask != null) await directTask;
         await StopAsync();
         allowClose = true;
         Close();
     }
     void Apply(LinkUpdate u)
     {
+        if (u.DiagnosticOnly) { if (!string.IsNullOrEmpty(u.Detail)) Append(u.Detail); return; }
         status.Text = u.Status == "AmneziaWG: рукопожатие и UDP" ? "VPN отвечает" : u.Ready ? "Сервер готов" : u.Status;
         readyPort = u.Ready ? u.Port : null;
+        readyAddress = u.LocalAddress;
         if (!u.Ready) vpnConfirmed = internetConfirmed = false;
         else if (u.Status == "AmneziaWG: рукопожатие и UDP") vpnConfirmed = true;
-        endpoint.Text = u.Port is int port ? $"Локальный UDP: 127.0.0.1:{port}" : "Локальный порт закрыт.";
+        endpoint.Text = u.Port is int port ? $"Локальный UDP: {readyAddress}:{port}" : "Локальный порт закрыт.";
         if (u.Ready)
         {
             hint.Text = u.Status == "AmneziaWG: рукопожатие и UDP"
@@ -371,6 +378,7 @@ sealed partial class MainWindow : Form
     void Export(bool handshakeOnly) => TryUi(() =>
     {
         if (readyPort is not int port) return;
+        string address = readyAddress;
         var profile = profiles.SelectedItem as Profile;
         string? input = null;
         if (profile == null || profile.ProtectedVpnConfig.Length == 0)
@@ -385,10 +393,11 @@ sealed partial class MainWindow : Form
             Filter = "Конфигурация AmneziaWG|*.conf", DefaultExt = "conf", FileName = name + ".conf",
             OverwritePrompt = true };
         if (save.ShowDialog(this) != DialogResult.OK) return;
-        if (readyPort != port) throw new UserFault("Подождите, пока мост снова будет готов, и сохраните профиль ещё раз.");
+        if (readyPort != port || readyAddress != address) throw new UserFault("Подождите, пока мост снова будет готов, и сохраните профиль ещё раз.");
         var outerEndpoint = profile?.UseWarpCore == true ? WarpCore.ReadEndpoint() : null;
-        if (input != null) VpnConfig.Export(input, save.FileName, port, handshakeOnly, outerEndpoint);
-        else VpnConfig.ExportText(Setup.Open(profile!, profile!.ProtectedVpnConfig, "vpn-config"), save.FileName, port, handshakeOnly, outerEndpoint);
+        var localAddress = System.Net.IPAddress.Parse(address);
+        if (input != null) VpnConfig.Export(input, save.FileName, port, handshakeOnly, outerEndpoint, localAddress);
+        else VpnConfig.ExportText(Setup.Open(profile!, profile!.ProtectedVpnConfig, "vpn-config"), save.FileName, port, handshakeOnly, outerEndpoint, localAddress);
         string instructions = handshakeOnly
             ? "Импортируйте файл в AmneziaWG, активируйте только тестовый профиль и нажмите «Проверить интернет». Через VPN пойдёт только трафик к 1.1.1.1."
             : "Импортируйте сохранённый файл в AmneziaVPN и нажмите «Подключиться».";

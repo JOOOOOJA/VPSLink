@@ -127,6 +127,7 @@ sealed partial class MainWindow
         AddPage(nav, "Диагностика", diagnosticPage, "Проверка интернета и журнал подключения. Откройте, если VPN не подключается, сайты не открываются или нужно понять причину ошибки.");
         AddPage(nav, "Обновления", BuildUpdatesPage(), "Новые версии Link из GitHub. Проверка и загрузка не прерывают VPN; установка выполняется по вашему нажатию с сохранением профилей.");
         AddPage(nav, "Приглашения", BuildSharingPage(), "Передача доступа к вашему VPS другим людям. Владелец создаёт отдельный VPN-профиль; получатель импортирует защищённый паролем файл без административных данных владельца.");
+        AddPage(nav, "Напрямую", BuildDirectPage(), "Steam, игры и выбранные приложения идут к провайдеру, остальные сохраняют маршрут через VPN. Нужно, если отдельным приложениям требуется прямой выход.");
         AddPage(nav, "Инструкция", guide, "Пошаговая помощь без сложных терминов. Объясняет первый запуск, автоподключение и типичные проблемы. Полную версию можно открыть в браузере.");
         Theme.Apply(this);
         sidebar.BackColor = nav.BackColor = brand.BackColor = brandDetail.BackColor = version.BackColor = Theme.Sidebar;
@@ -152,7 +153,7 @@ sealed partial class MainWindow
     static Label HelpText(string text) => new() { Text = text, AutoSize = true, MaximumSize = new Size(620, 0), ForeColor = Theme.Muted, Margin = new Padding(0, 5, 0, 14) };
     void AddPage(FlowLayoutPanel nav, string title, Control page, string explanation)
     {
-        var button = new Button { Text = title, Width = 162, Height = 46, TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(0, 0, 0, 7), AccessibleDescription = explanation };
+        var button = new Button { Text = title, Width = 162, Height = 42, TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(0, 0, 0, 5), AccessibleDescription = explanation };
         int index = navigation.Count;
         button.Click += (_, _) => SelectPage(index);
         tips.SetToolTip(button, explanation);

@@ -12,8 +12,8 @@ sealed record VpnSource(string Id, string Container, string Interface, string To
 sealed record Inventory(bool UdpEcho, string? Details, VpnSource[]? Sources, PortBinding[]? Ports, string? Error);
 sealed record PeerStats(long Now, long Handshake, ulong Rx, ulong Tx, string? Error);
 sealed record TunnelTarget(string Host, int Port, string SourceId, string Peer);
-sealed record LinkUpdate(string Status, string Detail = "", int? Port = null, bool Ready = false);
-sealed record Ack(bool Ready, string? Error);
+sealed record LinkUpdate(string Status, string Detail = "", int? Port = null, bool Ready = false, bool DiagnosticOnly = false, string LocalAddress = "127.0.0.1");
+sealed record Ack(bool Ready, string? Error, string? Destination = null);
 sealed record VpnOption(string SourceId, int Port, string Label)
 {
     public override string ToString() => $"{Label} · UDP {Port}";
@@ -119,19 +119,36 @@ sealed class Verification
 
 sealed class LocalUdp : IDisposable
 {
+    internal const int ReceiveBufferBytes = 256 * 1024;
     public UdpClient Client { get; }
     public int Port => ((IPEndPoint)Client.Client.LocalEndPoint!).Port;
-    public LocalUdp(int port)
+    public IPAddress Address { get; }
+    public LocalUdp(int port, IPAddress? address = null)
     {
+        Address = address ?? IPAddress.Loopback;
+        if (!LocalUdpAddress.IsUnicastV4(Address)) throw new UserFault("Нужен локальный IPv4-адрес моста.");
         Client = new UdpClient(AddressFamily.InterNetwork);
         try
         {
             Client.ExclusiveAddressUse = true;
-            Client.Client.Bind(new IPEndPoint(IPAddress.Loopback, port));
+            // Video arrives in bursts. A short blocked SSH write must not overflow
+            // the small Windows default before the receiver resumes draining UDP.
+            Client.Client.ReceiveBufferSize = ReceiveBufferBytes;
+            Client.Client.Bind(new IPEndPoint(Address, port));
             // Ignore Windows ICMP port-unreachable on the socket if the VPN closes while a reply is in flight.
             Client.Client.IOControl(unchecked((int)0x9800000C), new byte[] { 0 }, null);
         }
         catch { Client.Dispose(); throw; }
+    }
+    public async ValueTask<UdpReceiveResult> ReceiveAsync(CancellationToken ct)
+    {
+        while (true)
+        {
+            var packet = await Client.ReceiveAsync(ct);
+            // Compatibility mode binds a NIC address, but is not a LAN/VPS
+            // relay: only packets originating at that same local address pass.
+            if (packet.RemoteEndPoint.Address.Equals(Address)) return packet;
+        }
     }
     public void Dispose() => Client.Dispose();
 }
@@ -144,11 +161,12 @@ sealed class Supervisor
     readonly string? helperExe;
     readonly SetupInteraction? interaction;
     readonly IWarpClient warp;
+    string localAddress = "127.0.0.1";
     public Supervisor(string root, Action<LinkUpdate> update, Func<Profile, IReadOnlyList<ITransport>>? transports = null,
         string? helperExe = null, SetupInteraction? interaction = null, IWarpClient? warp = null)
     {
         this.root = root;
-        this.update = update;
+        this.update = u => update(u with { LocalAddress = localAddress });
         this.transports = transports ?? Available;
         this.helperExe = helperExe;
         this.interaction = interaction;
@@ -173,7 +191,9 @@ sealed class Supervisor
         try
         {
             Model.Validate(p, allowUnpinned: interaction != null);
-            using var local = new LocalUdp(p.LocalPort);
+            var bindAddress = LocalUdpAddress.Resolve(p.LocalUdpAdapterId);
+            using var local = new LocalUdp(p.LocalPort, bindAddress);
+            localAddress = bindAddress.ToString();
             update(new("Ищем путь до VPS…", Port: local.Port));
             using var coreTransport = p.UseWarpCore ? new RestartableWarpCore(p.ZapretPath, p.WinwsStrategy) : null;
             var candidates = Candidates();
@@ -244,7 +264,8 @@ sealed class Supervisor
                                 update(new("Мост доступен. Нет данных VPN", "Проверьте открытый ключ клиента и разрешения на чтение статистики awg/wg.", local.Port, true));
                         }
                         update(new(canVerify ? "Мост готов. Ожидаем VPN-клиент" : "Мост готов. VPN не проверен",
-                            $"UDP 127.0.0.1:{local.Port} → VPS {target.Host}:{target.Port}. Путь: {transport.Name}." +
+                            $"UDP {localAddress}:{local.Port} → VPS {target.Host}:{target.Port}. Путь: {transport.Name}." +
+                            (ack.Destination != null ? "\nФактическое UDP-назначение на VPS: " + ack.Destination : "") +
                             (canVerify ? "\nСтатистика VPN: " + target.SourceId :
                                 "\nДля подтверждения нужен открытый ключ клиента и однозначно найденный интерфейс awg/wg."),
                             local.Port, true));
@@ -369,12 +390,13 @@ sealed class Supervisor
         var peerGate = new object();
         bool reported = false, statsError = false;
         long lastLogged = -1;
+        long lastSlowWriteLog = -10000, lastSlowPingLog = -10000;
 
         async Task FromClient()
         {
             while (true)
             {
-                var packet = await local.Client.ReceiveAsync(token);
+                var packet = await local.ReceiveAsync(token);
                 if (packet.Buffer.Length is 0 or > Wire.MaxUdp) continue;
                 lock (peerGate)
                 {
@@ -383,7 +405,14 @@ sealed class Supervisor
                     clientEndpoint = packet.RemoteEndPoint;
                     clientActivity = clock.ElapsedMilliseconds;
                 }
+                long writeStarted = clock.ElapsedMilliseconds;
                 await w.Send('D', packet.Buffer, token);
+                long writtenAt = clock.ElapsedMilliseconds;
+                if (writtenAt - writeStarted >= 100 && writtenAt - lastSlowWriteLog >= 10000)
+                {
+                    lastSlowWriteLog = writtenAt;
+                    update(new("", $"Задержка отправки UDP в SSH: {writtenAt - writeStarted} мс. Канал не успевал принимать данные.", DiagnosticOnly: true));
+                }
                 Interlocked.Increment(ref sent);
             }
         }
@@ -397,7 +426,15 @@ sealed class Supervisor
                     case (byte)'P' when frame.Payload.Length == 8:
                         long value = BinaryPrimitives.ReadInt64BigEndian(frame.Payload);
                         if (value <= Interlocked.Read(ref lastPing) && value > Interlocked.Read(ref pong))
+                        {
                             Interlocked.Exchange(ref pong, value);
+                            long now = clock.ElapsedMilliseconds;
+                            if (now - value >= 250 && now - lastSlowPingLog >= 10000)
+                            {
+                                lastSlowPingLog = now;
+                                update(new("", $"Задержка ответа моста: {now - value} мс (SSH и внешний транспорт, без Discord).", DiagnosticOnly: true));
+                            }
+                        }
                         break;
                     case (byte)'D' when frame.Payload.Length is > 0 and <= Wire.MaxUdp:
                         IPEndPoint? peer;

@@ -12,7 +12,7 @@ sealed class ProfileWindow : Form
         proxyHost = Input(), peer = Input(), source = Input(), remoteIp = Input(), httpsRelay = Input(),
         relayToken = new() { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
     readonly NumericUpDown sshPort = Port(1), proxyPort = Port(1), remotePort = Port(0), localPort = Port(0);
-    readonly ComboBox auth = Choice(), proxy = Choice(), adapter = Choice(), mode = Choice();
+    readonly ComboBox auth = Choice(), proxy = Choice(), adapter = Choice(), mode = Choice(), localAdapter = Choice();
     readonly CheckBox startWarp = new() { Text = "Подключать Cloudflare WARP при необходимости", AutoSize = true };
     readonly CheckBox useWarpCore = new() { Text = "Подключаться через встроенное ядро WARP", AutoSize = true };
     readonly CheckBox autoConnect = new() { Text = "Подключать этот сервер при запуске Link", AutoSize = true };
@@ -198,6 +198,14 @@ sealed class ProfileWindow : Form
         peer.Text = original.ClientPublicKey; source.Text = original.SourceId;
         Row(tunnel, "IP назначения на VPS", remoteIp); Row(tunnel, "UDP-порт VPS (0 = авто)", remotePort);
         Row(tunnel, "Локальный порт (0 = авто)", localPort); Row(tunnel, "Открытый ключ VPN-клиента", peer);
+        localAdapter.Items.Add(new InterfaceChoice("", "Обычный режим (127.0.0.1)"));
+        foreach (var item in LocalUdpAddress.Adapters()) localAdapter.Items.Add(new InterfaceChoice(item.Id, item.Name));
+        if (!localAdapter.Items.Cast<InterfaceChoice>().Any(i => i.Id == original.LocalUdpAdapterId))
+            localAdapter.Items.Add(new InterfaceChoice(original.LocalUdpAdapterId, "Сохранённый адаптер недоступен"));
+        localAdapter.SelectedItem = localAdapter.Items.Cast<InterfaceChoice>().First(i => i.Id == original.LocalUdpAdapterId);
+        Row(tunnel, "Исключения AmneziaVPN", localAdapter);
+        Note(tunnel, "Если Steam или игры из исключений AmneziaVPN не подключаются, выберите свой Ethernet/Wi-Fi. Мост будет принимать пакеты только с этого ПК. После смены режима или IP-адреса сохраните профиль VPN заново и импортируйте его в AmneziaVPN. Список исключений задаётся в AmneziaVPN.");
+        Note(tunnel, "Этот режим исправляет выбор интернет-адаптера AmneziaVPN. Ограничение её драйвера для локального UDP остаётся: некоторые игры, включая Source 2, могут не работать в исключениях.");
         Row(tunnel, "Интерфейс VPN (необязательно)", source);
         Note(tunnel, "Оставьте адрес и порт пустыми или автоматическими, если на VPS один опубликованный VPN. Задайте постоянный локальный порт, чтобы повторно использовать импортированную конфигурацию после выхода из приложения.");
         Note(tunnel, "Для подтверждения handshake нужен открытый ключ именно клиента (Public key в разделе интерфейса AmneziaWG), а не ключ сервера из [Peer].");
@@ -278,6 +286,7 @@ sealed class ProfileWindow : Form
                 AdapterId = ((InterfaceChoice)adapter.SelectedItem!).Id, UseSystemRoute = system.Checked, AutoWarp = warp.Checked,
                 StartWarp = startWarp.Checked, UseWarpCore = useWarpCore.Checked, ZapretPath = zapretPath, VpnSetup = selectedMode,
                 RemoteIp = remoteIp.Text.Trim(), RemotePort = (int)remotePort.Value, LocalPort = (int)localPort.Value,
+                LocalUdpAdapterId = ((InterfaceChoice)localAdapter.SelectedItem!).Id,
                 ClientPublicKey = retain || selectedMode == VpnSetup.Manual ? peer.Text.Trim() : "",
                 SourceId = retain || selectedMode == VpnSetup.Manual ? source.Text.Trim() : "",
                 ServerPublicKey = retain ? original.ServerPublicKey : "",

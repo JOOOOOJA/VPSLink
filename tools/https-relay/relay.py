@@ -14,6 +14,14 @@ HEADER_LIMIT = 8192
 RESPONSE = b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: tfl-ssh\r\n\r\n"
 WS_GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 FRAME_LIMIT = 1024 * 1024
+MASK_TABLES = tuple(bytes(value ^ key for value in range(256)) for key in range(256))
+
+
+def unmask(data, mask):
+    # WebSocket repeats its four-byte mask. Translate each interleaved lane in C
+    # rather than running a Python operation for every byte on the event loop.
+    for lane in range(4):
+        data[lane::4] = data[lane::4].translate(MASK_TABLES[mask[lane]])
 
 
 class WebSocket:
@@ -48,7 +56,7 @@ class WebSocket:
             if length > FRAME_LIMIT: raise ValueError('Frame too large')
             mask = await self.reader.readexactly(4)
             data = bytearray(await self.reader.readexactly(length))
-            for i in range(length): data[i] ^= mask[i % 4]
+            unmask(data, mask)
             if opcode == 8:
                 await self.send(8, b'\x03\xe8')
                 return

@@ -23,6 +23,10 @@ Directory.CreateDirectory(scratch);
 try
 {
     RunUnit();
+    await SshOutputTests.Run();
+    await UdpBurstTests.Run();
+    await LocalUdpTests.Run();
+    await DirectRoutingTests.Run(scratch);
     await GatewayTests.Run();
     await UpdateTests.Run();
     await StrategyTests.Run();
@@ -200,6 +204,12 @@ void RunUnit()
     var output = Path.Combine(scratch, "output.conf");
     var config = "[Interface]\r\nPrivateKey = dummy\r\nJc = 7\r\n\r\n[Peer]\r\nEndpoint = old.example:1 # note\r\n";
     File.WriteAllText(input, config);
+    var compatible = Path.Combine(scratch, "compatible.conf");
+    VpnConfig.ExportText(config, compatible, 40055, localAddress: IPAddress.Parse("192.0.2.25"));
+    Assert(File.ReadAllText(compatible) == config.Replace("old.example:1", "192.0.2.25:40055"),
+        "compatibility export changes only endpoint, preserves keys and parameters");
+    Assert(Fails(() => VpnConfig.ExportText(config, Path.Combine(scratch,"invalid-address.conf"), 40055,
+        localAddress: IPAddress.Any)), "export refuses wildcard endpoint");
     VpnConfig.Export(input, output, 40055);
     Assert(File.ReadAllText(output) == config.Replace("old.example:1", "127.0.0.1:40055") && File.ReadAllText(input) == config,
         "export changes only endpoint and preserves original");

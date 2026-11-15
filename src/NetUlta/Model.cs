@@ -32,6 +32,8 @@ sealed record Profile
     public string RemoteIp { get; init; } = "";
     public int RemotePort { get; init; }
     public int LocalPort { get; init; }
+    public string LocalUdpAdapterId { get; init; } = "";
+    public DirectOptions Direct { get; init; } = new();
     public string ClientPublicKey { get; init; } = "";
     public string SourceId { get; init; } = "";
     public bool StartWarp { get; init; }
@@ -111,6 +113,8 @@ static class Model
             throw new UserFault("Укажите пароль SSH или файл приватного ключа.");
         if (p.AmneziaServerIndex is < 0 or > 999)
             throw new UserFault("Проверьте номер сервера AmneziaVPN.");
+        if (p.LocalUdpAdapterId.Length > 128 || p.LocalUdpAdapterId.Any(char.IsControl))
+            throw new UserFault("Проверьте сетевой адаптер локального моста.");
         if (p.StartWithWindows && !p.AutoConnect)
             throw new UserFault("Для запуска вместе с Windows включите подключение при запуске Link.");
     }
@@ -199,17 +203,19 @@ sealed class ProfileStore
 
 static class VpnConfig
 {
-    public static void Export(string input, string output, int port, bool handshakeOnly = false, IPAddress? outerEndpoint = null)
+    public static void Export(string input, string output, int port, bool handshakeOnly = false, IPAddress? outerEndpoint = null, IPAddress? localAddress = null)
     {
         if (Path.GetFullPath(input).Equals(Path.GetFullPath(output), StringComparison.OrdinalIgnoreCase))
             throw new UserFault("Выберите новое имя файла. Исходная конфигурация должна остаться для отката.");
         var info = new FileInfo(input);
         if (!info.Exists || info.Length > 1024 * 1024) throw new UserFault("Не удалось прочитать небольшую конфигурацию .conf.");
-        ExportText(File.ReadAllText(input), output, port, handshakeOnly, outerEndpoint);
+        ExportText(File.ReadAllText(input), output, port, handshakeOnly, outerEndpoint, localAddress);
     }
 
-    public static void ExportText(string text, string output, int port, bool handshakeOnly = false, IPAddress? outerEndpoint = null)
+    public static void ExportText(string text, string output, int port, bool handshakeOnly = false, IPAddress? outerEndpoint = null, IPAddress? localAddress = null)
     {
+        localAddress ??= IPAddress.Loopback;
+        if (!LocalUdpAddress.IsUnicastV4(localAddress)) throw new UserFault("Нужен локальный IPv4-адрес моста.");
         var outputLines = new List<string>();
         int peers = 0, endpoints = 0, interfaces = 0;
         string section = "";
@@ -245,7 +251,7 @@ static class VpnConfig
             endpoints++;
             string comment = hash >= 0 ? " " + original[hash..].TrimEnd('\r') : "";
             string ending = original.EndsWith('\r') ? "\r" : "";
-            outputLines.Add($"Endpoint = 127.0.0.1:{port}{comment}{ending}");
+            outputLines.Add($"Endpoint = {localAddress}:{port}{comment}{ending}");
             if (handshakeOnly)
             {
                 outputLines.Add("AllowedIPs = 1.1.1.1/32" + ending);

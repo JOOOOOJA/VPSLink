@@ -82,6 +82,8 @@ try {
         if ($LASTEXITCODE) { throw 'VPS provisioning tests failed.' }
         & $Python -I 'tests/test_https_relay.py'
         if ($LASTEXITCODE) { throw 'HTTPS/WebSocket relay tests failed.' }
+        & $Python -I 'tests/test_relay_transport.py'
+        if ($LASTEXITCODE) { throw 'UDP relay transport tests failed.' }
         & $Python -I 'tests/test_gateway_setup.py'
         if ($LASTEXITCODE) { throw 'Persistent gateway tests failed.' }
         & 'tests/NetUlta.Tests/bin/Release/net6.0-windows/NetUlta.Tests.exe' $Python $LibSsh $exe

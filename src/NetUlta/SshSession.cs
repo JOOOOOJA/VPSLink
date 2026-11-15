@@ -122,9 +122,13 @@ sealed class SshSession : IDisposable
     {
         process = p;
         this.bridge = bridge;
-        Wire = new Wire(p.StandardOutput.BaseStream, p.StandardInput.BaseStream);
+        Wire = new Wire(BufferOutput(p.StandardOutput.BaseStream), p.StandardInput.BaseStream);
         errors = DrainErrors(p.StandardError);
     }
+    // Headers and UDP payloads share a byte stream. Drain available pipe data in
+    // larger reads instead of scheduling a pipe read for every header and body.
+    // Only the receive side is buffered; writes/flushes keep their existing timing.
+    internal static Stream BufferOutput(Stream output) => new BufferedStream(output, 64 * 1024);
     static byte[] ReadRelay()
     {
         using var dest = new MemoryStream();

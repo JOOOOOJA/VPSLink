@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — direct routing (Proof of Concept)
+
+- Add per-profile direct routing for Steam libraries, individual Windows executables, and the saved AmneziaVPN exclusion list. Start routing after confirming the selected VPN peer.
+- Accept the verified official sing-box Windows archive as a separate component. Detect conflicting Amnezia settings and unsupported network configurations before starting.
+- Buffer OpenSSH reads, enlarge UDP receive buffers, and add rate-limited diagnostics for SSH write stalls and bridge round-trip delays.
+- Prefer an unambiguous Docker bridge endpoint for a published VPN port. Optimize receive-side WebSocket unmasking on the VPS gateway when its relay is updated.
+- Offer an advanced local IPv4 bind for clients that need a non-loopback endpoint. Keep existing defaults and saved profiles.
+
 ## 0.4.0 — sharing and strategy catalogs (Proof of Concept)
 
 - Include the Flowseal/bol-van strategy selection, catalog updates and guarded path testing from 0.3.2–0.3.3.

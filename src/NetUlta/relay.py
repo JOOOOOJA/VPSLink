@@ -13,6 +13,7 @@ import time
 
 MAX_FRAME = 65535
 MAX_UDP = 65507
+UDP_RECEIVE_BUFFER = 256 * 1024
 HEADER = struct.Struct("!IB")
 WRITE = threading.Lock()
 CONTROL = threading.Lock()
@@ -227,6 +228,68 @@ def telemetry(req):
         return {"Error": "peer_stats"}
 
 
+def udp_destination(host, port):
+    """Avoid Docker's lossy userland UDP hop, only for a verified local binding.
+
+    Reinspect on each connection: a container IP saved in an invitation can become
+    stale. Ambiguous/missing/non-bridge networks retain the published endpoint.
+    No routes, Docker settings or firewall rules are changed.
+    """
+    original = (str(host), port)
+    if not host.is_loopback or host.version != 4:
+        return original
+    matches = set()
+    for source in (INVENTORY or {}).get("Sources", []):
+        cid = source.get("Container", "")
+        if not isinstance(cid, str) or not re.fullmatch(r"[a-f0-9]{12,64}", cid):
+            continue
+        for binding in source.get("Ports", []):
+            inside = binding.get("Inside")
+            if (binding.get("Host") == str(host) and binding.get("Port") == port and
+                    isinstance(inside, int) and 0 < inside <= 65535):
+                matches.add((cid, inside))
+    if len(matches) != 1:
+        return original
+    cid, inside = next(iter(matches))
+    if not any(b["Host"] == str(host) and b["Port"] == port and b["Inside"] == inside for b in bindings(cid)):
+        return original
+    try:
+        networks = json.loads(run("docker", "inspect", "--format", "{{json .NetworkSettings.Networks}}", cid) or "null")
+        if not isinstance(networks, dict) or not networks:
+            return original
+        if len(networks) == 1:
+            network = next(iter(networks.values()))
+        else:
+            # Amnezia also attaches a DNS network. Prefer the explicitly
+            # configured primary network rather than guessing by dictionary order.
+            mode = run("docker", "inspect", "--format", "{{.HostConfig.NetworkMode}}", cid)
+            if mode == "default": mode = "bridge"
+            selected = [value for name, value in networks.items() if isinstance(value, dict) and
+                        (name == mode or value.get("NetworkID") == mode)]
+            if len(selected) != 1:
+                return original
+            network = selected[0]
+        network_id = network.get("NetworkID", "")
+        if not isinstance(network_id, str) or not re.fullmatch(r"[a-f0-9]{64}", network_id):
+            return original
+        address = ipaddress.ip_address(network.get("IPAddress", ""))
+        gateway = ipaddress.ip_address(network.get("Gateway", ""))
+        if (address.version != 4 or gateway.version != 4 or
+                any(ip.is_unspecified or ip.is_loopback or ip.is_multicast or
+                    str(ip) == "255.255.255.255" for ip in (address, gateway))):
+            return original
+        if run("docker", "network", "inspect", "--format", "{{.Driver}}", network_id) != "bridge":
+            return original
+        # Require a local on-link route, not an external gateway. This checks
+        # routing only; site-specific firewall rules can still reject UDP.
+        route = json.loads(run("ip", "-j", "route", "get", str(address)) or "null")
+        if not isinstance(route, list) or len(route) != 1 or route[0].get("prefsrc") != str(gateway) or route[0].get("gateway"):
+            return original
+        return str(address), inside
+    except (ValueError, TypeError, AttributeError, KeyError):
+        return original
+
+
 def configure(data):
     global UDP
     try:
@@ -235,9 +298,11 @@ def configure(data):
         port = req["Port"]
         if target.is_unspecified or target.is_multicast or str(target) == "255.255.255.255" or not 1 <= port <= 65535:
             raise ValueError()
+        destination = udp_destination(target, port)
         sock = socket.socket(socket.AF_INET if target.version == 4 else socket.AF_INET6, socket.SOCK_DGRAM)
         try:
-            sock.connect((str(target), port))
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, UDP_RECEIVE_BUFFER)
+            sock.connect(destination)
             sock.settimeout(0.2)
         except BaseException:
             sock.close()
@@ -245,7 +310,7 @@ def configure(data):
         if UDP:
             UDP.close()
         UDP = sock
-        reply("S", {"Ready": True})
+        reply("S", {"Ready": True, "Destination": str(destination[0]) + ":" + str(destination[1])})
     except (OSError, ValueError, KeyError, TypeError):
         reply("S", {"Error": "target"})
 
