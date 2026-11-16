@@ -112,7 +112,12 @@ sealed partial class MainWindow
         diagLayout.Controls.Add(endpoint, 0, 1); diagLayout.Controls.Add(Row(internet, copy, test), 0, 2); diagLayout.Controls.Add(diagnostics, 0, 3);
         diagnosticPage.Controls.Add(diagLayout);
 
-        var guide = Page(); var guideContent = Stack();
+        var guide = new DarkTabControl { Dock = DockStyle.Fill };
+        var ownerGuide = new TabPage("Свой сервер") { AutoScroll = true, ToolTipText = "Настройка вашего VPS и первый запуск VPN." };
+        var invitationGuide = new TabPage("По приглашению") { AutoScroll = true, ToolTipText = "Подключение, если вам прислали файл .vpslink и пароль." };
+        guide.TabPages.AddRange(new[] { ownerGuide, invitationGuide });
+        Theme.Tabs(guide);
+        var guideContent = Stack();
         guideContent.Controls.Add(Heading("Как пользоваться Link", "Сначала подготовьте VPS с AmneziaWG, данные SSH и AmneziaVPN на компьютере. Для постоянного шлюза также нужны домен и аккаунт Cloudflare. Где всё это взять — в полной инструкции для браузера."));
         guideContent.Controls.Add(Heading("01   Добавьте свой сервер", "Введите адрес VPS и данные SSH. При первом входе сверьте отпечаток ключа с панелью хостера."));
         guideContent.Controls.Add(Heading("02   Подключите Link", "Дождитесь готовности сервера. При необходимости настройте постоянный шлюз в разделе «Подключение»."));
@@ -121,7 +126,17 @@ sealed partial class MainWindow
         openGuide.Click += (_, _) => TryUi(() => UserGuide.Open(directory));
         guideContent.Controls.Add(Row(openGuide));
         guideContent.Controls.Add(HelpText("В инструкции: что нужно заранее и где получить VPS, домен и приложения; первое подключение, постоянный шлюз, автозапуск и решение проблем. Справка работает без интернета, внешние ссылки требуют подключения."));
-        guide.Controls.Add(guideContent);
+        ownerGuide.Controls.Add(guideContent);
+
+        var invitationContent = Stack();
+        invitationContent.Controls.Add(Heading("Если вам прислали приглашение", "Подготовьте файл .vpslink, пароль к нему и AmneziaVPN с поддержкой версии AmneziaWG на сервере."));
+        invitationContent.Controls.Add(Heading("Импортируйте приглашение", "В разделе «Приглашения» нажмите «Импортировать приглашение…», выберите файл и введите пароль. Сверьте адрес и отпечаток SSH с владельцем перед подтверждением."));
+        invitationContent.Controls.Add(Heading("Подключите VPSLink", "Выберите добавленный сервер и нажмите «Подключить». Если VPSLink предложит зарегистрировать ваше устройство WARP, следуйте подсказкам. Дождитесь готовности моста."));
+        invitationContent.Controls.Add(Heading("Включите VPN в AmneziaVPN", "Откройте «Серверы» и сохраните VPN-профиль. Импортируйте .conf в AmneziaVPN и подключитесь. В следующий раз включайте мост VPSLink, затем этот же VPN-профиль."));
+        var openInvitationGuide = Button("Открыть инструкцию по приглашению  ↗");
+        openInvitationGuide.Click += (_, _) => TryUi(() => UserGuide.Open(directory, invitation: true));
+        invitationContent.Controls.Add(Row(openInvitationGuide));
+        invitationGuide.Controls.Add(invitationContent);
 
         AddPage(nav, "Главная", home, "Главный экран подключения. Показывает связь с сервером, VPN и интернетом. Открывайте для подключения и проверки состояния.");
         AddPage(nav, "Серверы", servers, "Ваши VPS и профили VPN. Здесь добавляют сервер, меняют его данные и сохраняют файл для AmneziaVPN. Нужно при первом запуске или смене сервера.");
@@ -131,7 +146,7 @@ sealed partial class MainWindow
         AddPage(nav, "Обновления", BuildUpdatesPage(), "Новые версии Link из GitHub. Проверка и загрузка не прерывают VPN; установка выполняется по вашему нажатию с сохранением профилей.");
         AddPage(nav, "Приглашения", BuildSharingPage(), "Передача доступа к вашему VPS другим людям. Владелец создаёт отдельный VPN-профиль; получатель импортирует защищённый паролем файл без административных данных владельца.");
         AddPage(nav, "Напрямую", BuildDirectPage(), "Steam, игры и выбранные приложения идут к провайдеру, остальные сохраняют маршрут через VPN. Нужно, если отдельным приложениям требуется прямой выход.");
-        AddPage(nav, "Инструкция", guide, "Пошаговая помощь без сложных терминов. Объясняет первый запуск, автоподключение и типичные проблемы. Полную версию можно открыть в браузере.");
+        AddPage(nav, "Инструкция", guide, "Выберите инструкцию для своего VPS или подключитесь по приглашению. Полную версию можно открыть в браузере.");
         Theme.Apply(this);
         sidebar.BackColor = nav.BackColor = brand.BackColor = brandDetail.BackColor = version.BackColor = Theme.Sidebar;
         brand.ForeColor = Theme.Accent; brandDetail.ForeColor = version.ForeColor = Theme.Muted;

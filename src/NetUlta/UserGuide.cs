@@ -16,5 +16,12 @@ static class UserGuide
         resource.CopyTo(output);
         return file;
     }
-    public static void Open(string directory) => Process.Start(new ProcessStartInfo(Save(directory)) { UseShellExecute = true });
+    public static void Open(string directory, bool invitation = false)
+    {
+        string file = Save(directory);
+        string target = invitation
+            ? new UriBuilder(new Uri(file)) { Fragment = "received-invitation" }.Uri.AbsoluteUri
+            : file;
+        Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+    }
 }
