@@ -3,7 +3,9 @@ import importlib.util
 import ipaddress
 import json
 from pathlib import Path
+import queue
 import socket
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -93,6 +95,82 @@ class DestinationTests(unittest.TestCase):
             for n in range(64): sender.sendto(n.to_bytes(4, 'big') + bytes(1396), target)
             received = [int.from_bytes(relay.UDP.recv(1500)[:4], 'big') for _ in range(64)]
             self.assertEqual(received, list(range(64)))
+
+
+class DatagramQueueTests(unittest.TestCase):
+    def test_drops_oldest_at_both_bounds(self):
+        sock = object()
+        datagrams = relay.DatagramQueue(clock=lambda: 0)
+        with patch.object(relay, 'UDP_QUEUE_BYTES', 7), patch.object(relay, 'UDP_QUEUE_PACKETS', 2):
+            for packet in (b'a', b'b', b'c', b'1234567'):
+                datagrams.put(sock, packet)
+                self.assertLessEqual(len(datagrams.items), 2)
+                self.assertLessEqual(datagrams.size, 7)
+            self.assertEqual(datagrams.get(), (0, sock, b'1234567'))
+        datagrams.close()
+        self.assertIsNone(datagrams.get())
+        self.assertEqual(datagrams.size, 0)
+
+    def test_stalled_stdout_allows_udp_drain_and_skips_stale_packets(self):
+        incoming = queue.Queue()
+        stop = threading.Event()
+        entered_write = threading.Event()
+        release_write = threading.Event()
+        queued_old = threading.Event()
+        queued_fresh = threading.Event()
+        delivered_fresh = threading.Event()
+        clock = [0.0]
+        sent = []
+        datagrams = relay.DatagramQueue(clock=lambda: clock[0])
+
+        class Socket:
+            def recv(self, _):
+                try:
+                    return incoming.get(timeout=0.05)
+                except queue.Empty:
+                    raise socket.timeout() from None
+
+        sock = Socket()
+        put = datagrams.put
+
+        def record_packet(source, data):
+            put(source, data)
+            if data == b'old':
+                queued_old.set()
+            if data == b'fresh':
+                queued_fresh.set()
+
+        def slow_write(kind, data):
+            sent.append((kind, data))
+            if data == b'blocked':
+                entered_write.set()
+                release_write.wait(3)
+            if data == b'fresh':
+                delivered_fresh.set()
+
+        with patch.object(relay, 'STOP', stop), patch.object(relay, 'UDP', sock), \
+                patch.object(relay, 'write_frame', side_effect=slow_write), patch.object(datagrams, 'put', side_effect=record_packet):
+            reader = threading.Thread(target=relay.udp_receive, args=(datagrams,))
+            writer = threading.Thread(target=relay.udp_write, args=(datagrams,))
+            reader.start()
+            writer.start()
+            try:
+                incoming.put(b'blocked')
+                self.assertTrue(entered_write.wait(2))
+                incoming.put(b'old')
+                self.assertTrue(queued_old.wait(2))
+                clock[0] = 0.2
+                incoming.put(b'fresh')
+                self.assertTrue(queued_fresh.wait(2))
+                release_write.set()
+                self.assertTrue(delivered_fresh.wait(2))
+                self.assertEqual(sent, [('D', b'blocked'), ('D', b'fresh')])
+            finally:
+                stop.set()
+                datagrams.close()
+                release_write.set()
+                reader.join(2)
+                writer.join(2)
 
 
 if __name__ == '__main__': unittest.main()

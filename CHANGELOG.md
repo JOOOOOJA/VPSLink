@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 — QUIC DATAGRAM and automatic fallback (Proof of Concept)
+
+- Add direct QUIC DATAGRAM over the physical IPv4 interface for owner profiles. Start a temporary authenticated receiver through pinned SSH and retain the configured AmneziaWG endpoint.
+- Offer automatic fallback to WARP + HTTPS when direct UDP is unavailable or QUIC stops responding. Keep the local UDP port and the imported VPN profile.
+- Add manual transport selection, the active-path indicator, and a comparison of expected latency, performance, encryption and destination visibility.
+- Bound the VPS UDP-to-SSH queue and discard expired packets when SSH is backpressured.
+- Bundle the QUIC modules in Setup and portable builds. Update the offline guide and technical documentation.
+
 ## 0.5.0 — direct routing (Proof of Concept)
 
 - Add per-profile direct routing for Steam libraries, individual Windows executables, and the saved AmneziaVPN exclusion list. Start routing after confirming the selected VPN peer.

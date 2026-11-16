@@ -95,10 +95,7 @@ sealed class WarpCore : ITransport, IDisposable
         if (!Registered) throw new UserFault("Ядро WARP ещё не зарегистрировано.");
         var endpoint = ReadEndpoint();
         RequirePhysicalRoute(endpoint);
-        var reservation = new TcpListener(IPAddress.Loopback, 0);
-        reservation.Start();
-        int port = ((IPEndPoint)reservation.LocalEndpoint).Port;
-        reservation.Stop();
+        int port = PickLocalProxyPort();
         var info = SshSession.StartInfo(Executable, "--config", Configuration, "socks", "--http2",
             "--sni-address", "www.cloudflare.com",
             "--bind", "127.0.0.1", "--port", port.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -122,6 +119,26 @@ sealed class WarpCore : ITransport, IDisposable
             return core;
         }
         catch { core.Dispose(); throw; }
+    }
+
+    static int PickLocalProxyPort()
+    {
+        for (int attempt = 0; attempt < 12; attempt++)
+        {
+            using var tcp = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            using var udp = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            tcp.ExclusiveAddressUse = udp.ExclusiveAddressUse = true;
+            tcp.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+            var endpoint = (IPEndPoint)tcp.LocalEndPoint!;
+            try
+            {
+                // usque binds both protocols on this port.
+                udp.Bind(endpoint);
+                return endpoint.Port;
+            }
+            catch (SocketException) { }
+        }
+        throw new UserFault("Не нашёлся свободный локальный порт TCP и UDP для WARP.", false);
     }
 
     internal static IPAddress ReadEndpoint()

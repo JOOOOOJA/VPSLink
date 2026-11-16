@@ -329,6 +329,7 @@ sealed partial class MainWindow : Form
         status.Text = u.Status == "AmneziaWG: рукопожатие и UDP" ? "VPN отвечает" : u.Ready ? "Сервер готов" : u.Status;
         readyPort = u.Ready ? u.Port : null;
         readyAddress = u.LocalAddress;
+        if (!u.Ready || u.DataPath.Length != 0) activeDataPath = u.DataPath;
         if (!u.Ready) vpnConfirmed = internetConfirmed = false;
         else if (u.Status == "AmneziaWG: рукопожатие и UDP") vpnConfirmed = true;
         endpoint.Text = u.Port is int port ? $"Локальный UDP: {readyAddress}:{port}" : "Локальный порт закрыт.";

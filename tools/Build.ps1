@@ -3,7 +3,8 @@ param(
     [string]$Python,
     [string]$LibSsh,
     [string]$WarpCoreDirectory,
-    [string]$ZapretDirectory
+    [string]$ZapretDirectory,
+    [string]$QuicModuleCache
 )
 $ErrorActionPreference = 'Stop'
 if ([bool]$Python -ne [bool]$LibSsh) { throw 'Specify both -Python and -LibSsh or omit both.' }
@@ -67,6 +68,7 @@ try {
     $goRoot = go env GOROOT
     if ($LASTEXITCODE) { throw 'Go installation could not be located.' }
     Copy-Item -LiteralPath (Join-Path $goRoot 'LICENSE') -Destination "$bundle/Go-LICENSE.txt"
+    & (Join-Path $PSScriptRoot 'Build-QuicBridge.ps1') -Destination (Join-Path $root "$bundle/quic") -CachedModules $QuicModuleCache
     $alice = [Convert]::ToBase64String([Convert]::FromHexString('77076D0A7318A57D3C16C17251B26645DF4C2F87EBC0992AB177FBA51DB92C2A'))
     $derived = ($alice | & "$bundle/tfl-awg-keys.exe" public) | ConvertFrom-Json
     $expected = [Convert]::ToBase64String([Convert]::FromHexString('8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A'))

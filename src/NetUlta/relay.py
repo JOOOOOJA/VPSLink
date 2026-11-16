@@ -1,8 +1,12 @@
 """Ephemeral server half of TFL/1. Runs on OpenSSH stdin/stdout."""
+from collections import deque
+import gzip
 import ipaddress
+import io
 import json
 import os
 import re
+import select
 import secrets
 import socket
 import struct
@@ -10,10 +14,14 @@ import subprocess
 import sys
 import threading
 import time
+import tempfile
 
 MAX_FRAME = 65535
 MAX_UDP = 65507
 UDP_RECEIVE_BUFFER = 256 * 1024
+UDP_QUEUE_BYTES = 128 * 1024
+UDP_QUEUE_PACKETS = 128
+UDP_MAX_QUEUE_AGE = 0.1
 HEADER = struct.Struct("!IB")
 WRITE = threading.Lock()
 CONTROL = threading.Lock()
@@ -22,14 +30,66 @@ STOP = threading.Event()
 INVENTORY = None
 IDENTIFIER = re.compile(r"[A-Za-z0-9_.-]{1,80}\Z")
 B64KEY = re.compile(r"[A-Za-z0-9+/]{43}=\Z")
+QUIC_IMAGE = bytearray()
+QUIC = None
+
+
+def write_frame(kind, data):
+    if len(data) > MAX_FRAME:
+        raise ValueError("frame")
+    sys.stdout.buffer.write(HEADER.pack(len(data), ord(kind)) + data)
+    sys.stdout.buffer.flush()
 
 
 def send(kind, data=b""):
-    if len(data) > MAX_FRAME:
-        raise ValueError("frame")
     with WRITE:
-        sys.stdout.buffer.write(HEADER.pack(len(data), ord(kind)) + data)
-        sys.stdout.buffer.flush()
+        write_frame(kind, data)
+
+
+class DatagramQueue:
+    def __init__(self, clock=time.monotonic):
+        self.clock = clock
+        self.ready = threading.Condition()
+        self.items = deque()
+        self.size = 0
+        self.closed = False
+
+    def discard_first(self):
+        item = self.items.popleft()
+        self.size -= len(item[2])
+        return item
+
+    def expire(self, now):
+        while self.items and now - self.items[0][0] >= UDP_MAX_QUEUE_AGE:
+            self.discard_first()
+
+    def put(self, sock, data):
+        with self.ready:
+            if self.closed:
+                return
+            now = self.clock()
+            self.expire(now)
+            while len(self.items) >= UDP_QUEUE_PACKETS or self.size + len(data) > UDP_QUEUE_BYTES:
+                self.discard_first()
+            self.items.append((now, sock, data))
+            self.size += len(data)
+            self.ready.notify()
+
+    def get(self):
+        with self.ready:
+            while not self.closed:
+                self.expire(self.clock())
+                if self.items:
+                    return self.discard_first()
+                self.ready.wait()
+            return None
+
+    def close(self):
+        with self.ready:
+            self.closed = True
+            self.items.clear()
+            self.size = 0
+            self.ready.notify_all()
 
 
 def reply(kind, obj):
@@ -334,6 +394,58 @@ def control(kind, data):
         CONTROL.release()
 
 
+def start_quic(data):
+    global QUIC
+    if UDP is None or QUIC is not None or not QUIC_IMAGE or not re.fullmatch(b"[A-F0-9]{64}", data):
+        reply("Q", {"Error": "quic request"})
+        return
+    try:
+        host, port = UDP.getpeername()[:2]
+        target = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+        limit = 20 * 1024 * 1024
+        with gzip.GzipFile(fileobj=io.BytesIO(QUIC_IMAGE)) as blob:
+            image = blob.read(limit + 1)
+        QUIC_IMAGE.clear()
+        if not image.startswith(b"\x7fELF") or len(image) > limit:
+            raise ValueError("bad server binary")
+        with tempfile.TemporaryDirectory(prefix="vpslink-quic-") as private:
+            path = os.path.join(private, "bridge")
+            with open(path, "wb") as out:
+                out.write(image)
+            os.chmod(path, 0o700)
+            QUIC = subprocess.Popen([path, "server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                    stderr=subprocess.DEVNULL, cwd=private)
+            os.unlink(path)
+        with QUIC.stdin as pipe:
+            pipe.write(json.dumps({"Key": data.decode("ascii"), "Target": target}).encode("ascii") + b"\n")
+        if not select.select([QUIC.stdout], [], [], 5)[0]:
+            raise TimeoutError("QUIC listener startup")
+        ready = QUIC.stdout.readline(512)
+        if not ready:
+            raise ValueError("QUIC listener refused")
+        reply("Q", json.loads(ready))
+    except (OSError, ValueError, EOFError):
+        QUIC_IMAGE.clear()
+        stop_quic()
+        reply("Q", {"Error": "quic startup"})
+
+
+def stop_quic():
+    global QUIC
+    process, QUIC = QUIC, None
+    if process is None:
+        return
+    try:
+        if process.poll() is None:
+            process.terminate()
+        process.wait(2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+    finally:
+        process.stdout.close()
+
+
 def dispatch(kind, data):
     if kind == "D" and UDP is not None and 0 < len(data) <= MAX_UDP:
         try:
@@ -344,6 +456,10 @@ def dispatch(kind, data):
         send("P", data)
     elif kind == "S" and len(data) < 1024:
         configure(data)
+    elif kind == "B" and QUIC is None and len(QUIC_IMAGE) + len(data) <= 8 * 1024 * 1024:
+        QUIC_IMAGE.extend(data)
+    elif kind == "Q":
+        start_quic(data)
     elif (kind in ("I", "T", "C") and len(data) < 1024) or (kind in ("G", "J") and len(data) < 8192):
         if CONTROL.acquire(blocking=False):
             threading.Thread(target=control, args=(kind, data), daemon=kind not in ("C", "G", "J")).start()
@@ -353,7 +469,7 @@ def dispatch(kind, data):
         raise ValueError("frame type")
 
 
-def udp_receive():
+def udp_receive(queue):
     while not STOP.is_set():
         sock = UDP
         if sock is None:
@@ -362,7 +478,7 @@ def udp_receive():
         try:
             data = sock.recv(MAX_UDP)
             if data and sock is UDP and not STOP.is_set():
-                send("D", data)
+                queue.put(sock, data)
         except (BlockingIOError, ConnectionRefusedError, socket.timeout):
             pass
         except OSError:
@@ -370,10 +486,26 @@ def udp_receive():
                 STOP.wait(0.05)
 
 
+def udp_write(queue):
+    try:
+        while item := queue.get():
+            queued_at, sock, data = item
+            with WRITE:
+                # Recheck age after waiting for the control frames and the previous write.
+                if sock is UDP and not STOP.is_set() and queue.clock() - queued_at < UDP_MAX_QUEUE_AGE:
+                    write_frame("D", data)
+    except OSError:
+        STOP.set()
+        queue.close()
+
+
 def main():
     send("H", b"TFL/1")
-    worker = threading.Thread(target=udp_receive, daemon=True)
-    worker.start()
+    queue = DatagramQueue()
+    reader = threading.Thread(target=udp_receive, args=(queue,), daemon=True)
+    writer = threading.Thread(target=udp_write, args=(queue,), daemon=True)
+    reader.start()
+    writer.start()
     try:
         while True:
             header = sys.stdin.buffer.read(HEADER.size)
@@ -388,9 +520,12 @@ def main():
             dispatch(chr(kind), data)
     finally:
         STOP.set()
+        stop_quic()
+        queue.close()
         if UDP is not None:
             UDP.close()
-        worker.join(0.5)
+        reader.join(0.5)
+        writer.join(0.5)
 
 
 if __name__ == "__main__":

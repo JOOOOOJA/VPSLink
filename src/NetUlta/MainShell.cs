@@ -11,6 +11,7 @@ sealed partial class MainWindow
     readonly Panel pages = new() { Dock = DockStyle.Fill };
     readonly List<(Button Nav, Control Page)> navigation = new();
     bool vpnConfirmed, internetConfirmed;
+    string activeDataPath = "";
 
     void BuildShell()
     {
@@ -93,7 +94,9 @@ sealed partial class MainWindow
         var connectionContent = Stack();
         connectionContent.Controls.Add(Heading("Подключение", "Здесь выбирается путь к VPS, если обычное соединение недоступно."));
         routeSummary.AutoSize = true; routeSummary.MaximumSize = new Size(630, 0); routeSummary.Margin = new Padding(0, 16, 0, 16);
-        connectionContent.Controls.Add(routeSummary); connectionContent.Controls.Add(Row(start, stop));
+        connectionContent.Controls.Add(routeSummary);
+        AddDataRouteControls(connectionContent);
+        connectionContent.Controls.Add(Row(start, stop));
         connectionContent.Controls.Add(Heading("Постоянный адрес", "Настройте собственный адрес шлюза в Cloudflare. Он сохранится после перезапуска VPS."));
         connectionContent.Controls.Add(Row(gateway));
         connectionContent.Controls.Add(HelpText("Для первой настройки нужны активный домен Cloudflare, API-токен и уже работающий путь входа на VPS. Токен запрашивается только во время настройки."));
@@ -171,6 +174,7 @@ sealed partial class MainWindow
     }
     void RefreshShell()
     {
+        RefreshDataRoute();
         bool busy = running != null;
         power.Enabled = !closing && gatewayWork == null && strategyWork == null && writable;
         power.Active = readyPort.HasValue; power.Waiting = busy && !readyPort.HasValue;
@@ -185,7 +189,14 @@ sealed partial class MainWindow
         if (profiles.SelectedItem is Profile p)
         {
             profileSummary.Text = p.Name + "\n" + p.Host + "\n\n" + (p.ProtectedVpnConfig.Length > 0 ? "VPN-профиль уже создан. Можно сохранить его для AmneziaVPN." : "VPN-профиль будет подготовлен при подключении.");
-            routeSummary.Text = (p.UseWarpCore ? "Встроенное подключение WARP" : "Путь из настроек сервера") +
+            routeSummary.Text = (p.DataRoute switch
+                {
+                    DataRoute.Automatic => "Авто · прямой QUIC с резервом WARP + HTTPS",
+                    DataRoute.DirectQuic => "Только прямой QUIC DATAGRAM",
+                    DataRoute.WarpHttps => "Только WARP + HTTPS",
+                    _ => p.UseWarpCore ? "Встроенное подключение WARP" : "Путь из настроек сервера",
+                }) +
+                (readyPort.HasValue && activeDataPath.Length != 0 ? "\nСейчас: " + activeDataPath : "") +
                 (p.GatewayHostname.Length > 0 ? "\nПостоянный адрес: " + p.GatewayHostname : p.HttpsRelay.Length > 0 ? "\nИспользуется сохранённый HTTPS-шлюз" : "\nПостоянный шлюз ещё не настроен");
         }
         else { profileSummary.Text = "Серверов пока нет. Нажмите «Добавить сервер», чтобы начать."; routeSummary.Text = "Сначала добавьте свой сервер в разделе «Серверы»."; }

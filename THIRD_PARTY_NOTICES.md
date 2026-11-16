@@ -2,6 +2,8 @@
 
 VPSLink's original source and artwork are MIT licensed. That license does not replace the licenses of bundled components. Original copyright notices and full license texts are in `LICENSES/`; usque dependency licenses are in `LICENSES/usque-modules/`.
 
+The bundled QUIC modules use [quic-go v0.60.0 (MIT)](https://github.com/quic-go/quic-go/tree/v0.60.0) and the Go `x/crypto`, `x/net` and `x/sys` modules (BSD-3-Clause). Their version pins are in `tools/quic-bridge/go.mod`, and their license texts accompany the modules in `quic/`.
+
 | Component | Distribution | License / source |
 |---|---|---|
 | winws, zapret v72.13 | Unmodified Windows binary | [MIT, bol-van](https://github.com/bol-van/zapret/tree/87e058624c72863db53bdaf7fb6f16576dddb6ab) |

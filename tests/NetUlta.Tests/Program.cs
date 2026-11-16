@@ -200,6 +200,11 @@ void RunUnit()
     Assert(!v.Check(new(501, 500, 200, 100, null), 1, 1), "one-way VPN counters cannot verify");
     Assert(v.Check(new(501, 500, 200, 200, null), 1, 1), "fresh handshake and bidirectional evidence");
     Assert(!v.Check(new(502, 501, 10, 10, null), 1, 1), "counter reset requires new baseline");
+    var continuing = new Verification(continuingPeer: true);
+    continuing.Seed(new PeerStats(500, 480, 100, 100, null));
+    Assert(!continuing.Check(new(501, 480, 200, 100, null), 1, 1), "fallback still requires bidirectional peer counters");
+    Assert(continuing.Check(new(501, 480, 200, 200, null), 1, 1), "fallback verifies continued traffic with the already authenticated peer");
+    Assert(!continuing.Check(new(700, 480, 300, 300, null), 1, 1), "fallback rejects an expired handshake");
     var input = Path.Combine(scratch, "input.conf");
     var output = Path.Combine(scratch, "output.conf");
     var config = "[Interface]\r\nPrivateKey = dummy\r\nJc = 7\r\n\r\n[Peer]\r\nEndpoint = old.example:1 # note\r\n";

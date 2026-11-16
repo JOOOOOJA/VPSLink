@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text.Json;
 
@@ -12,7 +13,8 @@ sealed record VpnSource(string Id, string Container, string Interface, string To
 sealed record Inventory(bool UdpEcho, string? Details, VpnSource[]? Sources, PortBinding[]? Ports, string? Error);
 sealed record PeerStats(long Now, long Handshake, ulong Rx, ulong Tx, string? Error);
 sealed record TunnelTarget(string Host, int Port, string SourceId, string Peer);
-sealed record LinkUpdate(string Status, string Detail = "", int? Port = null, bool Ready = false, bool DiagnosticOnly = false, string LocalAddress = "127.0.0.1");
+sealed record LinkUpdate(string Status, string Detail = "", int? Port = null, bool Ready = false,
+    bool DiagnosticOnly = false, string LocalAddress = "127.0.0.1", string DataPath = "");
 sealed record Ack(bool Ready, string? Error, string? Destination = null);
 sealed record VpnOption(string SourceId, int Port, string Label)
 {
@@ -104,6 +106,8 @@ static class Vpn
 sealed class Verification
 {
     PeerStats? baseline;
+    readonly bool continuingPeer;
+    public Verification(bool continuingPeer = false) => this.continuingPeer = continuingPeer;
     public void Seed(PeerStats? stats) => baseline = stats?.Error == null ? stats : null;
     public bool Check(PeerStats current, long sent, long received)
     {
@@ -111,7 +115,9 @@ sealed class Verification
         if (baseline == null || current.Rx < baseline.Rx || current.Tx < baseline.Tx ||
             current.Handshake < baseline.Handshake)
         { baseline = current; return false; }
-        return sent > 0 && received > 0 && current.Handshake > baseline.Handshake &&
+        var validHandshake = current.Handshake > baseline.Handshake ||
+            continuingPeer && current.Handshake > 0 && current.Handshake == baseline.Handshake;
+        return sent > 0 && received > 0 && validHandshake &&
                current.Handshake <= current.Now + 5 && current.Handshake >= current.Now - 180 &&
                current.Rx > baseline.Rx && current.Tx > baseline.Tx;
     }
@@ -161,9 +167,12 @@ sealed class Supervisor
     readonly string? helperExe;
     readonly SetupInteraction? interaction;
     readonly IWarpClient warp;
+    readonly Func<SshSession, QuicEgress, CancellationToken, Task<QuicSession>> openQuic;
+    readonly ITransport? warpCoreOverride;
     string localAddress = "127.0.0.1";
     public Supervisor(string root, Action<LinkUpdate> update, Func<Profile, IReadOnlyList<ITransport>>? transports = null,
-        string? helperExe = null, SetupInteraction? interaction = null, IWarpClient? warp = null)
+        string? helperExe = null, SetupInteraction? interaction = null, IWarpClient? warp = null,
+        Func<SshSession, QuicEgress, CancellationToken, Task<QuicSession>>? openQuic = null, ITransport? warpCoreOverride = null)
     {
         this.root = root;
         this.update = u => update(u with { LocalAddress = localAddress });
@@ -171,6 +180,8 @@ sealed class Supervisor
         this.helperExe = helperExe;
         this.interaction = interaction;
         this.warp = warp ?? new WarpClient();
+        this.openQuic = openQuic ?? QuicSession.Open;
+        this.warpCoreOverride = warpCoreOverride;
     }
     public static IReadOnlyList<ITransport> Available(Profile p)
     {
@@ -195,10 +206,14 @@ sealed class Supervisor
             using var local = new LocalUdp(p.LocalPort, bindAddress);
             localAddress = bindAddress.ToString();
             update(new("Ищем путь до VPS…", Port: local.Port));
-            using var coreTransport = p.UseWarpCore ? new RestartableWarpCore(p.ZapretPath, p.WinwsStrategy) : null;
+            using var ownedCore = p.UseWarpCore && warpCoreOverride == null ? new RestartableWarpCore(p.ZapretPath, p.WinwsStrategy) : null;
+            var coreTransport = warpCoreOverride ?? ownedCore;
             var candidates = Candidates();
             int delay = 2;
             bool triedWarp = false;
+            bool useFallback = false;
+            bool quicPeerVerified = false;
+            bool legacy = p.DataRoute == DataRoute.ProfileSettings;
             Profile? warpProxy = null;
             TunnelTarget? previousTarget = null;
             List<ITransport> Candidates()
@@ -210,12 +225,19 @@ sealed class Supervisor
             while (!ct.IsCancellationRequested)
             {
                 bool interrupted = false;
-                foreach (var transport in candidates.ToArray())
+                var attempts = legacy
+                    ? candidates.Select(t => (Transport: t, Egress: (QuicEgress?)null)).ToList()
+                    : await DataAttempts();
+                bool quicUnavailable = false;
+                foreach (var (transport, egress) in attempts)
                 {
+                    if (egress != null && quicUnavailable) continue;
                     bool active = false;
+                    bool testingQuic = false;
+                    string path = egress != null ? QuicSession.Name : transport.Name;
                     try
                     {
-                        update(new("Проверяем SSH…", transport.Name, local.Port));
+                        update(new("Проверяем SSH…", egress != null ? path + " · управление через " + transport.Name : path, local.Port));
                         if (p.Fingerprint.Length == 0)
                         {
                             string fingerprint = await SshSession.DiscoverFingerprint(transport, p, ct);
@@ -253,7 +275,8 @@ sealed class Supervisor
                             JsonSerializer.SerializeToUtf8Bytes(new { target.Host, target.Port }), 7, ct));
                         if (!ack.Ready) throw new UserFault("VPS не смог создать UDP-сокет до выбранного адреса и порта.");
                         previousTarget = target;
-                        var verification = new Verification();
+                        var continuingPeer = egress == null && useFallback && quicPeerVerified;
+                        var verification = new Verification(continuingPeer);
                         var canVerify = target.SourceId.Length > 0 && target.Peer.Length > 0;
                         var query = JsonSerializer.SerializeToUtf8Bytes(new { Id = target.SourceId, target.Peer });
                         if (canVerify)
@@ -263,35 +286,54 @@ sealed class Supervisor
                             if (baseline.Error != null)
                                 update(new("Мост доступен. Нет данных VPN", "Проверьте открытый ключ клиента и разрешения на чтение статистики awg/wg.", local.Port, true));
                         }
+                        testingQuic = egress != null;
+                        if (testingQuic)
+                            update(new("Проверяем прямой UDP…", "Запускаем временный QUIC-вход на VPS.", local.Port));
+                        using var quic = egress != null ? await openQuic(ssh, egress, ct) : null;
                         update(new(canVerify ? "Мост готов. Ожидаем VPN-клиент" : "Мост готов. VPN не проверен",
-                            $"UDP {localAddress}:{local.Port} → VPS {target.Host}:{target.Port}. Путь: {transport.Name}." +
+                            $"UDP {localAddress}:{local.Port} → VPS {target.Host}:{target.Port}. Путь: {path}." +
                             (ack.Destination != null ? "\nФактическое UDP-назначение на VPS: " + ack.Destination : "") +
                             (canVerify ? "\nСтатистика VPN: " + target.SourceId :
                                 "\nДля подтверждения нужен открытый ключ клиента и однозначно найденный интерфейс awg/wg."),
-                            local.Port, true));
+                            local.Port, true, DataPath: path));
                         active = true;
                         triedWarp = false;
                         delay = 2;
-                        await Forward(ssh, local, verification, canVerify, query, ct);
+                        await Forward(ssh, local, verification, canVerify, query, quic, continuingPeer,
+                            () => { if (quic != null) quicPeerVerified = true; }, ct);
                     }
                     catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
-                    catch (UserFault e) when (e.Terminal)
+                    catch (UserFault e) when (e.Terminal && !testingQuic)
                     { update(new("Нужно действие", e.Message, local.Port)); return; }
-                    catch (Exception e) when (e is UserFault or IOException or SocketException or OperationCanceledException or JsonException)
+                    catch (Exception e) when (e is UserFault or IOException or SocketException or OperationCanceledException or JsonException ||
+                        testingQuic && e is System.ComponentModel.Win32Exception or UnauthorizedAccessException)
                     {
                         var reason = e is UserFault ? e.Message : e is OperationCanceledException ?
                             "Истекло время ожидания ответа." : "Передача прервалась или сервер закрыл канал.";
-                        update(new("Путь недоступен", transport.Name + ": " + reason, local.Port));
+                        update(new("Путь недоступен", path + ": " + reason, local.Port));
+                        if (testingQuic)
+                        {
+                            quicUnavailable = true;
+                            if (p.DataRoute == DataRoute.Automatic)
+                            {
+                                useFallback = true;
+                                update(new("Переходим на WARP + HTTPS…", "QUIC не отвечает. Локальный порт AmneziaWG сохранён.", local.Port));
+                            }
+                            continue;
+                        }
                         if (active)
                         {
                             interrupted = true;
-                            candidates.Remove(transport);
-                            candidates.Insert(0, transport);
+                            if (legacy)
+                            {
+                                candidates.Remove(transport);
+                                candidates.Insert(0, transport);
+                            }
                             break;
                         }
                     }
                 }
-                if (!interrupted && !triedWarp && coreTransport == null && p.AutoWarp && p.StartWarp)
+                if (legacy && !interrupted && !triedWarp && coreTransport == null && p.AutoWarp && p.StartWarp)
                 {
                     triedWarp = true;
                     try
@@ -303,16 +345,38 @@ sealed class Supervisor
                     }
                     catch (UserFault e) when (!e.Terminal) { update(new("Не удалось использовать WARP", e.Message, local.Port)); }
                 }
-                if (!interrupted)
+                if (legacy && !interrupted)
                 {
                     candidates = Candidates();
                     if (warpProxy != null) candidates.Insert(0, new ProxyTransport(warpProxy));
                 }
-                if (candidates.Count == 0 && previousTarget == null)
+                if (legacy && candidates.Count == 0 && previousTarget == null)
                     throw new UserFault("Нет доступного пути до VPS. Включите WARP или проверьте подключение.");
                 update(new($"Повторим через {delay} с", "Локальный UDP-порт сохранён. Проверьте сеть или нажмите «Остановить».", local.Port));
                 await Task.Delay(TimeSpan.FromSeconds(delay), ct);
                 delay = Math.Min(30, delay * 2);
+            }
+
+            async Task<List<(ITransport Transport, QuicEgress? Egress)>> DataAttempts()
+            {
+                var attempts = new List<(ITransport, QuicEgress?)>();
+                var reserve = coreTransport != null && p.HttpsRelay.Length != 0 ? new HttpsTransport(p, coreTransport) : null;
+                if (!useFallback && p.DataRoute is DataRoute.Automatic or DataRoute.DirectQuic)
+                {
+                    try
+                    {
+                        var egress = await QuicEgress.Resolve(p, ct);
+                        attempts.Add((new TcpTransport(egress.AdapterId), egress));
+                        if (reserve != null) attempts.Add((reserve, egress));
+                    }
+                    catch (Exception e) when (e is UserFault or SocketException or NetworkInformationException)
+                    {
+                        update(new("Прямой QUIC недоступен", e is UserFault ? e.Message : "Не удалось определить внешний маршрут.", local.Port));
+                    }
+                }
+                if (p.DataRoute is DataRoute.Automatic or DataRoute.WarpHttps && reserve != null)
+                    attempts.Add((reserve, null));
+                return attempts;
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
@@ -377,14 +441,18 @@ sealed class Supervisor
         return frame.Payload;
     }
 
-    async Task Forward(SshSession ssh, LocalUdp local, Verification verification, bool canVerify, byte[] query, CancellationToken ct)
+    async Task Forward(SshSession ssh, LocalUdp local, Verification verification, bool canVerify, byte[] query,
+        QuicSession? quic, bool continuingPeer, Action verified, CancellationToken ct)
     {
         using var next = CancellationTokenSource.CreateLinkedTokenSource(ct);
         using var interrupt = next.Token.Register(ssh.Interrupt);
+        using var stopQuic = quic == null ? default : next.Token.Register(quic.Interrupt);
         var token = next.Token;
         var w = ssh.Wire;
+        var dataWire = quic?.Wire ?? w;
         var clock = Stopwatch.StartNew();
         long pong = 0, sent = 0, received = 0, lastPing = 0, lastVerified = -1;
+        long quicPong = 0, quicPing = 0;
         IPEndPoint? clientEndpoint = null;
         long clientActivity = 0;
         var peerGate = new object();
@@ -406,12 +474,12 @@ sealed class Supervisor
                     clientActivity = clock.ElapsedMilliseconds;
                 }
                 long writeStarted = clock.ElapsedMilliseconds;
-                await w.Send('D', packet.Buffer, token);
+                await dataWire.Send('D', packet.Buffer, token);
                 long writtenAt = clock.ElapsedMilliseconds;
                 if (writtenAt - writeStarted >= 100 && writtenAt - lastSlowWriteLog >= 10000)
                 {
                     lastSlowWriteLog = writtenAt;
-                    update(new("", $"Задержка отправки UDP в SSH: {writtenAt - writeStarted} мс. Канал не успевал принимать данные.", DiagnosticOnly: true));
+                    update(new("", $"Задержка отправки UDP в {(quic == null ? "SSH" : "QUIC")}: {writtenAt - writeStarted} мс. Канал не успевал принимать данные.", DiagnosticOnly: true));
                 }
                 Interlocked.Increment(ref sent);
             }
@@ -436,14 +504,8 @@ sealed class Supervisor
                             }
                         }
                         break;
-                    case (byte)'D' when frame.Payload.Length is > 0 and <= Wire.MaxUdp:
-                        IPEndPoint? peer;
-                        lock (peerGate) peer = clientEndpoint;
-                        if (peer != null)
-                        {
-                            await local.Client.Client.SendToAsync(frame.Payload, SocketFlags.None, peer, token);
-                            Interlocked.Increment(ref received);
-                        }
+                    case (byte)'D' when quic == null && frame.Payload.Length is > 0 and <= Wire.MaxUdp:
+                        await Deliver(frame.Payload);
                         break;
                     case (byte)'T' when canVerify:
                         var stats = Vpn.Decode<PeerStats>(frame.Payload);
@@ -459,8 +521,12 @@ sealed class Supervisor
                             if (changed && !reported)
                             {
                                 reported = true;
+                                verified();
                                 update(new("AmneziaWG: рукопожатие и UDP",
-                                    $"Свежий handshake, выросли счётчики приёма и отправки выбранного клиента. UDP-пакетов: {tx} → VPS, {rx} ← VPS.",
+                                    (continuingPeer
+                                        ? "VPN продолжил обмен после перехода. "
+                                        : "Свежий handshake, выросли счётчики приёма и отправки выбранного клиента. ") +
+                                    $"UDP-пакетов: {tx} → VPS, {rx} ← VPS.",
                                     local.Port, true));
                             }
                         }
@@ -476,6 +542,48 @@ sealed class Supervisor
                         break;
                     default: throw new IOException("Неизвестное сообщение моста.");
                 }
+            }
+        }
+        async Task Deliver(byte[] data)
+        {
+            IPEndPoint? peer;
+            lock (peerGate) peer = clientEndpoint;
+            if (peer != null)
+            {
+                await local.Client.Client.SendToAsync(data, SocketFlags.None, peer, token);
+                Interlocked.Increment(ref received);
+            }
+        }
+        async Task FromQuic()
+        {
+            while (true)
+            {
+                var frame = await dataWire.Read(token);
+                if (frame.Type == 'D' && frame.Payload.Length is > 0 and <= Wire.MaxUdp)
+                    await Deliver(frame.Payload);
+                else if (frame.Type == 'P' && frame.Payload.Length == 8)
+                {
+                    long value = BinaryPrimitives.ReadInt64BigEndian(frame.Payload);
+                    if (value <= Interlocked.Read(ref quicPing) && value > Interlocked.Read(ref quicPong))
+                        Interlocked.Exchange(ref quicPong, value);
+                }
+                else throw new IOException("Неизвестное сообщение QUIC.");
+            }
+        }
+        async Task MonitorQuic()
+        {
+            using var watchdog = new System.Threading.Timer(_ =>
+            {
+                if (clock.ElapsedMilliseconds - Interlocked.Read(ref quicPong) > 6500) quic!.Interrupt();
+            }, null, 1000, 1000);
+            var bytes = new byte[8];
+            while (true)
+            {
+                long now = Math.Max(1, clock.ElapsedMilliseconds);
+                Interlocked.Exchange(ref quicPing, now);
+                BinaryPrimitives.WriteInt64BigEndian(bytes, now);
+                await dataWire.Send('P', bytes, token);
+                await Task.Delay(TimeSpan.FromSeconds(2), token);
             }
         }
         async Task Monitor()
@@ -496,7 +604,8 @@ sealed class Supervisor
                 await Task.Delay(TimeSpan.FromSeconds(8), token);
             }
         }
-        var tasks = new[] { FromClient(), FromServer(), Monitor() };
+        var tasks = new List<Task> { FromClient(), FromServer(), Monitor() };
+        if (quic != null) { tasks.Add(FromQuic()); tasks.Add(MonitorQuic()); }
         var first = await Task.WhenAny(tasks);
         next.Cancel();
         try { await Task.WhenAll(tasks); } catch (Exception) { }

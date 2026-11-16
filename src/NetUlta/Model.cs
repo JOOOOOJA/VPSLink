@@ -27,6 +27,7 @@ sealed record Profile
     public string HttpsRelay { get; init; } = "";
     public string ProtectedRelayToken { get; init; } = "";
     public string AdapterId { get; init; } = "";
+    public DataRoute DataRoute { get; init; }
     public bool AutoWarp { get; init; } = true;
     public bool UseSystemRoute { get; init; } = true;
     public string RemoteIp { get; init; } = "";
@@ -79,6 +80,7 @@ static class Model
     public static void Validate(Profile p, bool allowUnpinned = false)
     {
         if (p.WinwsStrategy != null) WinwsStrategies.Validate(p.WinwsStrategy);
+        ValidateDataRoute(p);
         if (p.SharedAccess && (p.Auth != AuthKind.Key || p.VpnSetup == VpnSetup.Create ||
             !Guid.TryParseExact(p.InvitationId, "N", out _) || p.ProtectedVpnConfig.Length == 0))
             throw new UserFault("Повреждён профиль приглашения. Импортируйте исходный файл заново.");
@@ -92,7 +94,7 @@ static class Model
             throw new UserFault("Введите корректный адрес и порт прокси.");
         if (p.HttpsRelay.Length != 0 && (!HttpsTransport.TryEndpoint(p.HttpsRelay, out _) || p.ProtectedRelayToken.Length == 0))
             throw new UserFault("Укажите HTTPS-адрес шлюза SSH и его токен.");
-        if (p.Proxy == ProxyKind.None && p.HttpsRelay.Length == 0 && p.AdapterId.Length == 0 &&
+        if (p.DataRoute == DataRoute.ProfileSettings && p.Proxy == ProxyKind.None && p.HttpsRelay.Length == 0 && p.AdapterId.Length == 0 &&
             !p.UseSystemRoute && !p.AutoWarp && !p.UseWarpCore)
             throw new UserFault("Выберите хотя бы один способ добраться до VPS.");
         if (p.RemoteIp.Length != 0 && (!IPAddress.TryParse(p.RemoteIp, out var ip) ||
@@ -117,6 +119,14 @@ static class Model
             throw new UserFault("Проверьте сетевой адаптер локального моста.");
         if (p.StartWithWindows && !p.AutoConnect)
             throw new UserFault("Для запуска вместе с Windows включите подключение при запуске Link.");
+    }
+
+    internal static void ValidateDataRoute(Profile p)
+    {
+        if (!Enum.IsDefined(typeof(DataRoute), p.DataRoute) || p.SharedAccess && p.DataRoute != DataRoute.ProfileSettings)
+            throw new UserFault("Этот режим транспорта недоступен для выбранного профиля.");
+        if (p.DataRoute is DataRoute.Automatic or DataRoute.WarpHttps && (!p.UseWarpCore || p.HttpsRelay.Length == 0))
+            throw new UserFault("Для этого режима включите встроенный WARP и настройте HTTPS-шлюз.");
     }
     public static IReadOnlyList<InterfaceChoice> Interfaces() =>
         NetworkInterface.GetAllNetworkInterfaces()

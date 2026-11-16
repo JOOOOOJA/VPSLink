@@ -9,7 +9,7 @@ NuGet sources are disabled in `NuGet.Config`; no third-party NuGet packages are 
 ./tools/Build.ps1
 ```
 
-This builds the app and key helper, runs offline C# checks and a GUI startup check. Without extra directories, usque/winws are not bundled. Existing binaries are verified against fixed SHA-256 values before bundling:
+This builds the app, key helper and Windows/Linux x64 QUIC modules. It runs Go and C# checks and a GUI startup check. Go modules are pinned by `tools/quic-bridge/go.sum`; use `-QuicModuleCache <path>` to build from an existing module cache without network access. Without extra directories, usque/winws are not bundled. Existing binaries are verified against fixed SHA-256 values before bundling:
 
 ```powershell
 ./tools/Build.ps1 -WarpCoreDirectory ./artifacts/dependencies/warp-core -ZapretDirectory ./artifacts/dependencies/zapret

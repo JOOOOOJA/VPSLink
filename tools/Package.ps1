@@ -7,7 +7,9 @@ $artifacts = Join-Path $root 'artifacts'
 $build = Join-Path $artifacts 'Windows-x64'
 & (Join-Path $PSScriptRoot 'Test-Publication.ps1')
 $runtimeFiles = @('README.md','VPSLink.exe','VPSLink.dll','VPSLink.deps.json',
-    'VPSLink.runtimeconfig.json','tfl-awg-keys.exe','Go-LICENSE.txt','LICENSE','THIRD_PARTY_NOTICES.md')
+    'VPSLink.runtimeconfig.json','tfl-awg-keys.exe','Go-LICENSE.txt','LICENSE','THIRD_PARTY_NOTICES.md',
+    'quic/vpslink-quic.exe','quic/vpslink-quic-linux.gz','quic/quic-go-LICENSE.txt',
+    'quic/x-crypto-LICENSE.txt','quic/x-net-LICENSE.txt','quic/x-sys-LICENSE.txt')
 foreach ($directory in 'docs','LICENSES') {
     $runtimeFiles += @(Get-ChildItem -LiteralPath (Join-Path $build $directory) -Recurse -File | ForEach-Object { $_.FullName.Substring($build.Length + 1) })
 }
@@ -32,6 +34,8 @@ if (Test-Path -LiteralPath $zapret -PathType Container) {
 }
 $version = ([xml](Get-Content -Raw -LiteralPath (Join-Path $root 'src/NetUlta/NetUlta.csproj'))).Project.PropertyGroup.Version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version.' }
+$builtVersion = (Get-Item -LiteralPath (Join-Path $build 'VPSLink.exe')).VersionInfo.ProductVersion.Split('+')[0]
+if ($builtVersion -ne $version) { throw "Expected a release build of VPSLink $version, found $builtVersion." }
 
 function New-Archive([string]$path, [string]$base, [string[]]$files) {
     $tmp = $path + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
