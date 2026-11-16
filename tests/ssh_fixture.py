@@ -55,7 +55,10 @@ def command_io(channel, command):
     args = shlex.split(command)
     if len(args) != 4 or args[:3] != ["python3", "-u", "-c"]:
         return
-    with subprocess.Popen([sys.executable, *args[1:]], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    # The Windows fixture exercises SSH authentication and UDP relay. Linux-only
+    # invitation locking is exercised separately by the server-side tests.
+    bootstrap = "import sys, types; sys.modules['fcntl'] = types.ModuleType('fcntl'); " + args[3]
+    with subprocess.Popen([sys.executable, *args[1:3], bootstrap], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                           stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW) as proc:
         output = queue.Queue(maxsize=128)
 

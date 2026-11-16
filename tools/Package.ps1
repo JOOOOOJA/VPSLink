@@ -10,6 +10,8 @@ $runtimeFiles = @('README.md','VPSLink.exe','VPSLink.dll','VPSLink.deps.json',
     'VPSLink.runtimeconfig.json','tfl-awg-keys.exe','Go-LICENSE.txt','LICENSE','THIRD_PARTY_NOTICES.md',
     'quic/vpslink-quic.exe','quic/vpslink-quic-linux.gz','quic/quic-go-LICENSE.txt',
     'quic/x-crypto-LICENSE.txt','quic/x-net-LICENSE.txt','quic/x-sys-LICENSE.txt')
+$runtimeFiles += @(& (Join-Path $PSScriptRoot 'Stage-OpenSsh.ps1') `
+    -Archive (Join-Path $artifacts 'dependencies/OpenSSH-Win64.zip') -Destination (Join-Path $build 'openssh'))
 foreach ($directory in 'docs','LICENSES') {
     $runtimeFiles += @(Get-ChildItem -LiteralPath (Join-Path $build $directory) -Recurse -File | ForEach-Object { $_.FullName.Substring($build.Length + 1) })
 }

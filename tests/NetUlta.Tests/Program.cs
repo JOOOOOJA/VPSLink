@@ -240,7 +240,7 @@ async Task RunIntegration(string python, string libssh, string app)
 {
     using var cap = new CancellationTokenSource(TimeSpan.FromSeconds(95));
     var ct = cap.Token;
-    var keygen = Path.Combine(Environment.SystemDirectory, "OpenSSH", "ssh-keygen.exe");
+    var keygen = SshSession.SshPath("ssh-keygen.exe");
     var host = Path.Combine(scratch, "host");
     var client = Path.Combine(scratch, "client");
     foreach (var entry in new[] { (host, ""), (client, "fixture-passphrase!") })

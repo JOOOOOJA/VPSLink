@@ -131,7 +131,7 @@ static class Sharing
                 ?? throw new UserFault("Сначала подключите профиль владельца и выберите поддерживаемый сервер AmneziaWG.");
             var keys = await Setup.Keys(null, token);
             using var files = new SshFiles(directory);
-            var info = SshSession.StartInfo(Path.Combine(Environment.SystemDirectory, "OpenSSH", "ssh-keygen.exe"),
+            var info = SshSession.StartInfo(SshSession.SshPath("ssh-keygen.exe"),
                 "-q", "-t", "ed25519", "-N", "", "-C", "vpslink-invitation", "-f", files.Key);
             using var gen = Process.Start(info) ?? throw new IOException("ssh-keygen");
             using var kill = token.Register(() => SshSession.Kill(gen));

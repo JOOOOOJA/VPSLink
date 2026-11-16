@@ -12,6 +12,7 @@ The bundled QUIC modules use [quic-go v0.60.0 (MIT)](https://github.com/quic-go/
 | usque 4.2.1 | Unmodified official Windows amd64 executable | [MIT, Diniboy1123](https://github.com/Diniboy1123/usque/tree/6aa03fc97d12848dce34eedbd187fb1077b5d1ea) and dependency notices |
 | Go standard library | Compiled into key helper and usque | BSD-style; `LICENSES/Go-BSD.txt` |
 | .NET Windows Desktop Runtime 10.0.15 | Official Microsoft redistributable inside Setup | Microsoft .NET Library binary terms and third-party notices in `LICENSES/dotnet-*`; upstream .NET source uses MIT and component-specific licenses |
+| Win32 OpenSSH 10.4.0.0p1 | Unmodified x64 Windows client and helpers, with `libcrypto.dll` | [Microsoft release and upstream source](https://github.com/PowerShell/Win32-OpenSSH/releases/tag/10.4.0.0p1-Preview); `openssh/LICENSE.txt` and `openssh/NOTICE.txt` |
 
 The release includes `VPSLink-<version>-third-party-sources.zip`: source archives for winws, Cygwin, WinDivert, usque, and the exact Go modules recorded in the official usque binary. Checksums and build pointers accompany that archive. These sources are available from the same release location as the corresponding binaries, without charge. See [build notes](docs/third-party-build.md).
 

@@ -383,7 +383,7 @@ sealed class Supervisor
         catch (SocketException) { update(new("Не удалось открыть локальный UDP", "Порт занят или недоступен. Укажите другой порт или 0 для автоматического выбора.")); }
         catch (UserFault e) { update(new("Нужно действие", e.Message)); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
-        { update(new("Ошибка запуска", "Проверьте наличие Windows OpenSSH Client и права записи в локальную папку приложения.")); }
+        { update(new("Ошибка запуска", "Проверьте наличие файлов OpenSSH из комплекта VPSLink и права записи в локальную папку приложения.")); }
     }
 
     async Task<Profile> Provision(SshSession ssh, Profile profile, Inventory inventory, int localPort, CancellationToken ct)

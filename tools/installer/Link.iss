@@ -14,7 +14,7 @@ DefaultGroupName=VPSLink
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64compatible
-MinVersion=10.0.22000
+MinVersion=10.0.19044
 PrivilegesRequired=admin
 OutputDir={#ProjectRoot}artifacts
 OutputBaseFilename=VPSLink-{#ReleaseVersion}-Setup
@@ -82,12 +82,4 @@ begin
     if Code = 3010 then NeedsRestart := True
     else if Code <> 0 then begin Result := 'Не удалось установить .NET Desktop Runtime. Код: ' + IntToStr(Code); exit; end;
   end;
-  if not FileExists(ExpandConstant('{sys}\OpenSSH\ssh.exe')) then begin
-    if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-      '-NoProfile -NonInteractive -WindowStyle Hidden -Command "try { $r = Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0 -ErrorAction Stop; if ($r.RestartNeeded) { exit 3010 }; if (!(Test-Path -LiteralPath ($env:WINDIR + ''\System32\OpenSSH\ssh.exe''))) { exit 1 }; exit 0 } catch { exit 1 }"',
-      '', SW_HIDE, ewWaitUntilTerminated, Code) then begin Result := 'Не удалось запустить установку компонента OpenSSH Client.'; exit; end;
-    if Code = 3010 then NeedsRestart := True
-    else if Code <> 0 then Result := 'Не удалось установить OpenSSH Client. Проверьте доступ к Центру обновления Windows и повторите установку.';
-  end;
-  if FileExists(ExpandConstant('{sys}\OpenSSH\ssh.exe')) then Log('Windows OpenSSH Client found.');
 end;

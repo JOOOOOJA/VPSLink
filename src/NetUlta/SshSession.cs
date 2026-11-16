@@ -110,7 +110,17 @@ sealed class SshFiles : IDisposable
 
 sealed class SshSession : IDisposable
 {
-    static string SshPath(string file) => Path.Combine(Environment.SystemDirectory, "OpenSSH", file);
+    internal static string SshPath(string file)
+    {
+        var bundledDirectory = Path.Combine(AppContext.BaseDirectory, "openssh");
+        // Source builds can use system OpenSSH. A packaged client and its helper
+        // tools must come from the same directory, including on Windows 10.
+        var directory = Directory.Exists(bundledDirectory)
+            ? bundledDirectory : Path.Combine(Environment.SystemDirectory, "OpenSSH");
+        var path = Path.Combine(directory, file);
+        if (!File.Exists(path)) throw new UserFault("Не найден " + file + ". Переустановите VPSLink или распакуйте архив целиком.");
+        return path;
+    }
     static readonly byte[] Relay = ReadRelay();
     const string Bootstrap = "python3 -u -c 'import sys; n=int(sys.stdin.buffer.readline()); exec(compile(sys.stdin.buffer.read(n), \"<thingsnotfun-link>\", \"exec\"))'";
     readonly Process process;
@@ -184,7 +194,6 @@ sealed class SshSession : IDisposable
     {
         if (!Model.IsFingerprint(p.Fingerprint)) throw new UserFault("Подтвердите отпечаток SSH перед входом.");
         string ssh = SshPath("ssh.exe");
-        if (!File.Exists(ssh)) throw new UserFault("Нужен установленный Windows OpenSSH Client (ssh.exe).");
         var exe = (helperExe ?? Environment.ProcessPath!).Replace('\\', '/');
         var pinCommand = "KnownHostsCommand=\"" + exe + "\" --known-host " + p.Fingerprint + " %I %H %t %K";
         using var files = p.Auth == AuthKind.Key ? new SshFiles(directory) : null;
@@ -256,6 +265,8 @@ sealed class SshSession : IDisposable
         if (s.Contains("Host key verification failed", StringComparison.OrdinalIgnoreCase) ||
             s.Contains("REMOTE HOST IDENTIFICATION", StringComparison.OrdinalIgnoreCase))
             return new UserFault("Ключ SSH не прошёл проверку. Сверьте отпечаток ED25519 в консоли хостера.");
+        if (s.Contains("Bad configuration option: knownhostscommand", StringComparison.OrdinalIgnoreCase))
+            return new UserFault("Версия системного OpenSSH устарела. Используйте комплектную сборку VPSLink с OpenSSH.");
         if (s.Contains("Permission denied", StringComparison.OrdinalIgnoreCase))
             return new UserFault("SSH отклонил пароль или ключ. Проверьте доступ и разрешённый способ входа.");
         if (s.Contains("python3", StringComparison.OrdinalIgnoreCase) && s.Contains("not found", StringComparison.OrdinalIgnoreCase))
@@ -274,10 +285,11 @@ sealed class SshSession : IDisposable
 
     internal static async Task<string> DiscoverFingerprint(ITransport transport, Profile p, CancellationToken ct)
     {
+        string ssh = SshPath("ssh.exe");
         using var bridge = await LoopbackBridge.Open(transport, p, ct);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(12));
-        var info = StartInfo(SshPath("ssh.exe"), "-F", "NUL", "-v", "-T", "-4",
+        var info = StartInfo(ssh, "-F", "NUL", "-v", "-T", "-4",
             "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "UpdateHostKeys=no",
             "-o", "GlobalKnownHostsFile=none", "-o", "UserKnownHostsFile=none", "-o", "HostKeyAlgorithms=ssh-ed25519",
             "-o", "ConnectTimeout=8", "-p", bridge.Port.ToString(System.Globalization.CultureInfo.InvariantCulture), "127.0.0.1");

@@ -1,0 +1,63 @@
+name: Windows 10 test package
+on:
+  push:
+    branches: [test/windows-10]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: 6.0.x
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: '1.26.2'
+          cache-dependency-path: tools/quic-bridge/go.sum
+      - name: Fetch pinned distribution inputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Get-VerifiedFile($url, $file, $sha256) {
+            Invoke-WebRequest -Uri $url -OutFile $file
+            if ((Get-FileHash -LiteralPath $file).Hash -ne $sha256) { throw "Unexpected hash for $file" }
+          }
+          $dependencies = (New-Item -ItemType Directory -Path 'artifacts/dependencies').FullName
+          $previous = 'https://github.com/JOOOOOJA/VPSLink/releases/download/v0.5.1'
+          $runtimeBundle = Join-Path $dependencies 'previous.zip'
+          Get-VerifiedFile "$previous/VPSLink-0.5.1-win-x64.zip" $runtimeBundle '38ED283D7FAAEA232CDFB8E6BC0A702985E0AC108C53A96C3159CFFC575C15C3'
+          Expand-Archive -LiteralPath $runtimeBundle -DestinationPath (Join-Path $dependencies 'previous')
+          $sourceBundle = Join-Path $dependencies 'sources.zip'
+          Get-VerifiedFile "$previous/VPSLink-0.5.1-third-party-sources.zip" $sourceBundle '53F2C33489546F9046AB1CAD84D94750C56D3E5511B19A219DC0A536353BDBFC'
+          Expand-Archive -LiteralPath $sourceBundle -DestinationPath 'artifacts/upstream-sources'
+          $runtime = 'windowsdesktop-runtime-10.0.15-win-x64.exe'
+          Get-VerifiedFile "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.15/$runtime" (Join-Path $dependencies $runtime) 'E61B030C1673EDFA3C0844502EFF83198C46AF9E7DF70DFC6E2EFC5B11EA513A'
+          $ssh = 'OpenSSH-Win64.zip'
+          Get-VerifiedFile "https://github.com/PowerShell/Win32-OpenSSH/releases/download/10.4.0.0p1-Preview/$ssh" (Join-Path $dependencies $ssh) 'B67FF8BECD203502190EC42AC7787C24C2CD3325ED7700485FE7A1C83D2A7957'
+          $inno = Join-Path $env:RUNNER_TEMP 'innosetup-7.1.1-x64.exe'
+          Get-VerifiedFile 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe' $inno '8A5A6711C3766A6E5FB74F280BA0E3551E719CE94538D901FDBD1F8F9920B3F0'
+          $install = Start-Process -FilePath $inno -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="C:\VPSLinkBuild\Inno"' -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Inno Setup exited with $($install.ExitCode)" }
+      - name: Build VPSLink and compile test installer
+        shell: pwsh
+        run: |
+          ./tools/Build.ps1 -WarpCoreDirectory 'artifacts/dependencies/previous/warp-core' -ZapretDirectory 'artifacts/dependencies/previous/zapret'
+          ./tools/Build-Installer.ps1 -Compiler 'C:\VPSLinkBuild\Inno\ISCC.exe'
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: VPSLink-Windows10-x64-test
+          path: |
+            artifacts/VPSLink-*-Setup.exe
+            artifacts/VPSLink-*-win-x64.zip
+            artifacts/VPSLink-*-source.zip
+            artifacts/VPSLink-*-third-party-sources.zip
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
