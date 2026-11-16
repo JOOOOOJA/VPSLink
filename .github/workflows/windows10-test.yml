@@ -49,6 +49,9 @@ jobs:
         shell: pwsh
         run: |
           ./tools/Build.ps1 -WarpCoreDirectory 'artifacts/dependencies/previous/warp-core' -ZapretDirectory 'artifacts/dependencies/previous/zapret'
+          foreach ($file in 'warp-core/usque.exe', 'zapret/winws.exe', 'zapret/WinDivert64.sys') {
+            if (-not (Test-Path -LiteralPath "artifacts/Windows-x64/$file" -PathType Leaf)) { throw "Missing $file in test package" }
+          }
           ./tools/Build-Installer.ps1 -Compiler 'C:\VPSLinkBuild\Inno\ISCC.exe'
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

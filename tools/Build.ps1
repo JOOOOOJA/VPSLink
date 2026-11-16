@@ -41,7 +41,7 @@ try {
         if ((Get-FileHash -LiteralPath $source).Hash -ne '122F2E40208E81BB814FCB4BE4FBBBDC9246860F1F3784F72AE4512B97667E91') {
             throw 'Unexpected usque.exe SHA-256.'
         }
-        $destination = Join-Path $bundle 'warp-core'
+        $destination = Join-Path $root "$bundle/warp-core"
         [IO.Directory]::CreateDirectory($destination) | Out-Null
         Copy-Item -LiteralPath $source,(Join-Path $core 'LICENSE.md') -Destination $destination
     }
@@ -55,7 +55,7 @@ try {
             }
             $path
         }
-        $destination = Join-Path $bundle 'zapret'
+        $destination = Join-Path $root "$bundle/zapret"
         [IO.Directory]::CreateDirectory($destination) | Out-Null
         Copy-Item -LiteralPath ($sources + (Join-Path $PSScriptRoot 'Zapret-NOTICES.md')) -Destination $destination
     }
